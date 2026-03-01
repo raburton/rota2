@@ -21,6 +21,7 @@ namespace Rota2.Services
                 .Include(r => r.Shifts)
                 .Include(r => r.RotaDoctors).ThenInclude(rd => rd.User)
                 .Include(r => r.RotaAdmins).ThenInclude(ra => ra.User)
+                .AsSplitQuery()
                 .OrderBy(r => r.Id)
                 .ToList();
         }
@@ -31,6 +32,7 @@ namespace Rota2.Services
                 .Include(r => r.Shifts)
                 .Include(r => r.RotaDoctors).ThenInclude(rd => rd.User)
                 .Include(r => r.RotaAdmins).ThenInclude(ra => ra.User)
+                .AsSplitQuery()
                 .SingleOrDefault(r => r.Id == id);
         }
 
