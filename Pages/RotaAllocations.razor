@@ -60,13 +60,7 @@ else
                     <td>@a.Shift?.Start.ToString("hh\\:mm") - @a.Shift?.End.ToString("hh\\:mm")</td>
                     <td>@(a.User?.Name ?? "(none)")</td>
                     <td>
-                        <select class="form-select form-select-sm d-inline-block w-auto" @onchange="(e => Assign(a.Id, int.TryParse(e.Value?.ToString(), out var v) ? (int?)v : null))">
-                            <option value="">(none)</option>
-                            @foreach(var d in _doctors)
-                            {
-                                <option value="@d.Id" selected="@(a.UserId == d.Id)">@d.Name</option>
-                            }
-                        </select>
+                        <ActionButton Icon="bi-person-circle" Text="Allocate" Variant="btn-outline-secondary" Size="btn-sm" OnClick="@(async () => await OpenDoctorPicker(a.Id, a.UserId, false))" />
                         <button class="btn btn-sm btn-outline-danger ms-2" @onclick="(() => ClearAssignment(a.Id))"><i class="bi bi-x-lg"></i></button>
                     </td>
                 </tr>
@@ -75,6 +69,8 @@ else
         </table>
         </div>
     }
+
+    <DoctorPicker @ref="_doctorPicker" />
 
     <!-- Separate view: show allocations for selected rota/date range (defaults to current month, no rota selected) -->
     <div class="card mt-4 p-3">
@@ -124,13 +120,7 @@ else
                         <td>@a.Shift?.Start.ToString("hh\\:mm") - @a.Shift?.End.ToString("hh\\:mm")</td>
                         <td>@(a.User?.Name ?? "(none)")</td>
                         <td>
-                            <select class="form-select d-inline-block w-auto" @onchange="(e => AssignView(a.Id, int.TryParse(e.Value?.ToString(), out var v) ? (int?)v : null))">
-                                <option value="">(none)</option>
-                                @foreach(var d in _doctors)
-                                {
-                                    <option value="@d.Id" selected="@(a.UserId == d.Id)">@d.Name</option>
-                                }
-                            </select>
+                            <ActionButton Icon="bi-person-circle" Text="Allocate" Variant="btn-outline-secondary" Size="btn-sm" OnClick="@(async () => await OpenDoctorPicker(a.Id, a.UserId, true))" />
                             <button class="btn btn-sm btn-outline-danger ms-2" @onclick="(() => ClearViewAssignment(a.Id))">Clear</button>
                         </td>
                     </tr>
@@ -154,6 +144,9 @@ else
     private DateTime _viewStartDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
     private DateTime _viewEndDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(1).AddDays(-1);
     private IEnumerable<Rota2.Models.ShiftAssignment>? _viewAssignments;
+    private Shared.DoctorPicker? _doctorPicker;
+    private int _editingAssignmentId = 0;
+    private bool _editingIsView = false;
 
     protected override async Task OnInitializedAsync()
     {
@@ -201,6 +194,21 @@ else
     {
         RotaService.UpdateAssignment(assignmentId, userId);
         LoadAssignments();
+    }
+
+    private async Task OpenDoctorPicker(int assignmentId, int? currentUserId, bool isView)
+    {
+        _editingAssignmentId = assignmentId;
+        _editingIsView = isView;
+        if (_doctorPicker != null)
+        {
+            var chosen = await _doctorPicker.ShowAsync(_doctors, currentUserId);
+            if (chosen.HasValue)
+            {
+                if (isView) AssignView(assignmentId, chosen.Value); else Assign(assignmentId, chosen.Value);
+                await InvokeAsync(StateHasChanged);
+            }
+        }
     }
 
     private void ClearAssignment(int assignmentId)

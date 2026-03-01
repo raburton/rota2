@@ -1,0 +1,85 @@
+@using Rota2.Models
+@using Microsoft.JSInterop
+<BootstrapModal @ref="_modal" Title="@Title" ConfirmText="Assign" CancelText="Cancel" ShowCancel="true" OnConfirm="Confirm" OnCancel="Cancel">
+    <div class="row g-2 mb-2">
+        <div class="col-md-4">
+            <select class="form-select" @bind="_roleFilter">
+                <option value="All">All roles</option>
+                <option value="Registrar">Registrar</option>
+                <option value="Consultant">Consultant</option>
+            </select>
+        </div>
+        <div class="col-md-8">
+            <input class="form-control" placeholder="Search doctors" @bind="_search" @bind:event="oninput" />
+        </div>
+    </div>
+    <div style="max-height:300px; overflow:auto;">
+        <div class="list-group">
+            <button type="button" class="list-group-item list-group-item-action @( _selectedUserId == null ? "active" : "" )" @onclick="() => Select(null)">(none)</button>
+            @foreach(var u in (_doctors ?? Enumerable.Empty<User>())
+                         .Where(d => d.Active)
+                         .Where(d => _roleFilter == "All" ? true : d.Role.ToString() == _roleFilter)
+                         .Where(d => string.IsNullOrEmpty(_search) || d.Name.Contains(_search, StringComparison.OrdinalIgnoreCase) || d.Email.Contains(_search, StringComparison.OrdinalIgnoreCase)))
+            {
+                var cls = _selectedUserId == u.Id ? "active" : string.Empty;
+                var badgeClass = u.Role == UserRole.Consultant ? "bg-info text-dark" : "bg-success";
+                <button type="button" class="list-group-item list-group-item-action @cls" @onclick="() => Select(u.Id)">
+                    <div class="d-flex align-items-center">
+                        <div style="width:110px; min-width:110px;">
+                            <span class="badge @badgeClass w-100 text-center">@u.Role</span>
+                        </div>
+                        <div class="flex-grow-1 ms-2">@($"{u.Name} ({u.Email})")</div>
+                    </div>
+                </button>
+            }
+        </div>
+    </div>
+</BootstrapModal>
+
+@code {
+    private BootstrapModal? _modal;
+    private IEnumerable<User>? _doctors;
+    private int? _selectedUserId;
+    private string _search = string.Empty;
+    private string _roleFilter = "All";
+    private System.Threading.Tasks.TaskCompletionSource<int?>? _tcs;
+
+    [Parameter]
+    public string Title { get; set; } = "Assign doctor";
+
+    public Task<int?> ShowAsync(IEnumerable<User> doctors, int? selectedUserId)
+    {
+        _doctors = doctors;
+        _selectedUserId = selectedUserId;
+        _search = string.Empty;
+        _roleFilter = "All";
+        _tcs = new System.Threading.Tasks.TaskCompletionSource<int?>();
+        _ = InvokeAsync(async () => { if (_modal != null) await _modal.ShowAsync(); });
+        return _tcs.Task;
+    }
+
+    public async Task HideAsync()
+    {
+        if (_modal != null) await _modal.HideAsync();
+    }
+
+    private void Select(int? userId)
+    {
+        _selectedUserId = userId;
+    }
+
+    private async Task Confirm()
+    {
+        if (_tcs != null && !_tcs.Task.IsCompleted)
+        {
+            _tcs.TrySetResult(_selectedUserId);
+        }
+        await HideAsync();
+    }
+
+    private async Task Cancel()
+    {
+        if (_tcs != null && !_tcs.Task.IsCompleted) _tcs.TrySetResult(null);
+        await HideAsync();
+    }
+}
