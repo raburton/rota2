@@ -14,6 +14,7 @@ namespace Rota2.Data
         public DbSet<Shift> Shifts { get; set; }
         public DbSet<RotaDoctor> RotaDoctors { get; set; }
         public DbSet<RotaAdmin> RotaAdmins { get; set; }
+        public DbSet<ShiftAssignment> ShiftAssignments { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -29,6 +30,16 @@ namespace Rota2.Data
                 .HasOne(ra => ra.Rota).WithMany(r => r.RotaAdmins).HasForeignKey(ra => ra.RotaId);
             modelBuilder.Entity<RotaAdmin>()
                 .HasOne(ra => ra.User).WithMany().HasForeignKey(ra => ra.UserId);
+
+            modelBuilder.Entity<ShiftAssignment>().HasKey(sa => sa.Id);
+            modelBuilder.Entity<ShiftAssignment>()
+                .HasOne(sa => sa.Rota).WithMany().HasForeignKey(sa => sa.RotaId);
+            modelBuilder.Entity<ShiftAssignment>()
+                .HasOne(sa => sa.Shift).WithMany().HasForeignKey(sa => sa.ShiftId);
+            modelBuilder.Entity<ShiftAssignment>()
+                .HasOne(sa => sa.User).WithMany().HasForeignKey(sa => sa.UserId);
+            modelBuilder.Entity<ShiftAssignment>()
+                .HasIndex(sa => new { sa.RotaId, sa.ShiftId, sa.Date }).IsUnique();
         }
     }
 }

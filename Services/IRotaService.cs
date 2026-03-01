@@ -10,5 +10,8 @@ namespace Rota2.Services
         Rota Create(Rota rota, IEnumerable<int> doctorIds, IEnumerable<int> adminIds);
         void Update(Rota rota, IEnumerable<int> doctorIds, IEnumerable<int> adminIds);
         void Delete(int id);
+        IEnumerable<Rota2.Models.ShiftAssignment> GetAssignments(int rotaId, DateTime start, DateTime end);
+        void CreateAssignments(int rotaId, DateTime start, DateTime end);
+        void UpdateAssignment(int assignmentId, int? userId);
     }
 }

@@ -36,6 +36,83 @@ namespace Rota2.Services
                 .SingleOrDefault(r => r.Id == id);
         }
 
+        public IEnumerable<Rota2.Models.ShiftAssignment> GetAssignments(int rotaId, DateTime start, DateTime end)
+        {
+            return _db.ShiftAssignments
+                .AsNoTracking()
+                .Include(sa => sa.User)
+                .Include(sa => sa.Shift)
+                .Where(sa => sa.RotaId == rotaId && sa.Date >= start.Date && sa.Date <= end.Date)
+                .OrderBy(sa => sa.Date).ThenBy(sa => sa.ShiftId)
+                .ToList();
+        }
+
+        public void CreateAssignments(int rotaId, DateTime start, DateTime end)
+        {
+            var rota = GetById(rotaId);
+            if (rota == null) return;
+            var doctorIds = rota.RotaDoctors.Select(rd => rd.UserId).ToList();
+
+            // build list of slots (date + shift) within range matching shift day
+            var slots = new List<(DateTime date, Shift shift)>();
+            for (var d = start.Date; d <= end.Date; d = d.AddDays(1))
+            {
+                foreach (var s in rota.Shifts)
+                {
+                    if (s.Day == d.DayOfWeek)
+                    {
+                        slots.Add((d, s));
+                    }
+                }
+            }
+
+            // remove existing assignments in range for this rota
+            var existing = _db.ShiftAssignments.Where(sa => sa.RotaId == rotaId && sa.Date >= start.Date && sa.Date <= end.Date).ToList();
+            _db.ShiftAssignments.RemoveRange(existing);
+
+            if (!doctorIds.Any())
+            {
+                // create empty assignments
+                foreach (var slot in slots)
+                {
+                    _db.ShiftAssignments.Add(new Rota2.Models.ShiftAssignment
+                    {
+                        RotaId = rotaId,
+                        ShiftId = slot.shift.Id,
+                        Date = slot.date,
+                        UserId = null
+                    });
+                }
+            }
+            else
+            {
+                // round-robin assign doctors across slots to spread fairly
+                var idx = 0;
+                var n = doctorIds.Count;
+                foreach (var slot in slots)
+                {
+                    var userId = doctorIds[idx % n];
+                    _db.ShiftAssignments.Add(new Rota2.Models.ShiftAssignment
+                    {
+                        RotaId = rotaId,
+                        ShiftId = slot.shift.Id,
+                        Date = slot.date,
+                        UserId = userId
+                    });
+                    idx++;
+                }
+            }
+            _db.SaveChanges();
+        }
+
+        public void UpdateAssignment(int assignmentId, int? userId)
+        {
+            var a = _db.ShiftAssignments.Find(assignmentId);
+            if (a == null) return;
+            a.UserId = userId;
+            _db.SaveChanges();
+        }
+
         public Rota Create(Rota rota, IEnumerable<int> doctorIds, IEnumerable<int> adminIds)
         {
             // detach any ids on shifts
