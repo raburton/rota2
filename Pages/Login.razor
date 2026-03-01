@@ -1,0 +1,40 @@
+@page "/login"
+@inject IUserService UserService
+@inject NavigationManager Nav
+@inject CustomAuthStateProvider AuthState
+
+<h3>Login</h3>
+
+@if (!string.IsNullOrEmpty(_error))
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+<EditForm Model="_model" OnValidSubmit="HandleLogin">
+    <InputText @bind-Value="_model.Email" class="form-control" placeholder="Email" />
+    <InputText @bind-Value="_model.Password" type="password" class="form-control mt-2" placeholder="Password" />
+    <button class="btn btn-primary mt-2" type="submit">Login</button>
+</EditForm>
+
+@code {
+    private LoginModel _model = new LoginModel();
+    private string _error = string.Empty;
+
+    private void HandleLogin()
+    {
+        var user = UserService.Authenticate(_model.Email, _model.Password);
+        if (user == null)
+        {
+            _error = "Invalid credentials";
+            return;
+        }
+        AuthState.MarkUserAsAuthenticated(user);
+        Nav.NavigateTo("/");
+    }
+
+    private class LoginModel
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Password { get; set; } = string.Empty;
+    }
+}

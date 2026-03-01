@@ -1,0 +1,40 @@
+@inherits LayoutComponentBase
+@inject Rota2.Services.CustomAuthStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<div class="container">
+    <div class="row">
+        <div class="col-3">
+            <nav>
+                <ul class="nav flex-column">
+                    <li class="nav-item"><NavLink class="nav-link" href="/">Home</NavLink></li>
+                    <li class="nav-item"><NavLink class="nav-link" href="/admin">Admin</NavLink></li>
+                    <li class="nav-item">
+                        <AuthorizeView>
+                            <Authorized Context="state">
+                                <div class="nav-link">Hello @state.User.Identity?.Name</div>
+                                <NavLink class="nav-link" href="/changepassword">Change password</NavLink>
+                                <a class="nav-link" href="#" @onclick="Logout">Logout</a>
+                            </Authorized>
+                            <NotAuthorized>
+                                <NavLink class="nav-link" href="/login">Login</NavLink>
+                            </NotAuthorized>
+                        </AuthorizeView>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+        <div class="col-9">
+            @Body
+        </div>
+    </div>
+</div>
+
+@code {
+    private async Task Logout()
+    {
+        AuthStateProvider.MarkUserAsLoggedOut();
+        await Task.Yield();
+        Nav.NavigateTo("/login");
+    }
+}

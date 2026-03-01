@@ -1,0 +1,15 @@
+@page "/"
+@inject AuthenticationStateProvider AuthStateProvider
+@using Microsoft.AspNetCore.Components.Authorization
+
+<AuthorizeView>
+    <Authorized>
+        <h3>Welcome</h3>
+        <p>You are logged in.</p>
+        <NavLink href="/admin">Admin Dashboard</NavLink>
+    </Authorized>
+    <NotAuthorized>
+        <h3>Welcome</h3>
+        <p>Please <NavLink href="/login">login</NavLink>.</p>
+    </NotAuthorized>
+</AuthorizeView>

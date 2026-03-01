@@ -1,0 +1,125 @@
+@page "/admin/user/{Id:int?}"
+@using Rota2.Models
+@inject IUserService UserService
+@inject NavigationManager Nav
+@inject AuthenticationStateProvider AuthStateProvider
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+
+<h3>@(IsNew ? "Add User" : "Edit User")</h3>
+
+@if (!string.IsNullOrEmpty(_message))
+{
+    <div class="alert alert-info">@_message</div>
+}
+
+<EditForm Model="_model" OnValidSubmit="HandleSubmit">
+    <InputText @bind-Value="_model.Name" class="form-control" placeholder="Name" />
+    <InputText @bind-Value="_model.Email" class="form-control mt-2" placeholder="Email" />
+    <InputSelect @bind-Value="_model.Role" class="form-control mt-2">
+        @foreach(var r in Enum.GetValues(typeof(UserRole)).Cast<UserRole>())
+        {
+            <option value="@r">@r</option>
+        }
+    </InputSelect>
+    <InputNumber @bind-Value="_model.Wte" class="form-control mt-2" />
+    <div class="form-check mt-2">
+        <InputCheckbox @bind-Value="_model.Active" class="form-check-input" />
+        <label class="form-check-label">Active</label>
+    </div>
+    <div class="form-check mt-2">
+        <InputCheckbox @bind-Value="_model.IsGlobalAdmin" class="form-check-input" />
+        <label class="form-check-label">Is Global Admin</label>
+    </div>
+    <InputText @bind-Value="_model.Password" type="password" class="form-control mt-2" placeholder="Password (only for new or to change)" />
+    <button class="btn btn-primary mt-2" type="submit">Save</button>
+    <button class="btn btn-secondary mt-2 ms-2" type="button" @onclick="Cancel">Cancel</button>
+</EditForm>
+
+@code {
+    [Parameter]
+    public int? Id { get; set; }
+
+    private bool IsNew => !Id.HasValue;
+
+    private UserModel _model = new UserModel();
+    private string _message = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+        var isGlobal = user?.FindFirst(c => c.Type == "IsGlobalAdmin")?.Value == "True";
+        if (isGlobal != true)
+        {
+            _message = "Not authorized.";
+            return;
+        }
+
+        if (Id.HasValue)
+        {
+            var u = UserService.GetById(Id.Value);
+            if (u != null)
+            {
+                _model.Id = u.Id;
+                _model.Name = u.Name;
+                _model.Email = u.Email;
+                _model.Role = u.Role;
+                _model.Wte = u.Wte;
+                _model.Active = u.Active;
+                _model.IsGlobalAdmin = u.IsGlobalAdmin;
+            }
+        }
+    }
+
+    private void Cancel() => Nav.NavigateTo("/admin");
+
+    private void HandleSubmit()
+    {
+        if (IsNew)
+        {
+            var u = new User
+            {
+                Name = _model.Name,
+                Email = _model.Email,
+                Role = _model.Role,
+                Wte = _model.Wte,
+                Active = _model.Active,
+                IsGlobalAdmin = _model.IsGlobalAdmin
+            };
+            UserService.CreateUser(u, _model.Password ?? "");
+            Nav.NavigateTo("/admin");
+            return;
+        }
+
+        var existing = UserService.GetById(_model.Id);
+        if (existing == null)
+        {
+            _message = "User not found.";
+            return;
+        }
+        existing.Name = _model.Name;
+        existing.Email = _model.Email;
+        existing.Role = _model.Role;
+        existing.Wte = _model.Wte;
+        existing.Active = _model.Active;
+        existing.IsGlobalAdmin = _model.IsGlobalAdmin;
+        UserService.UpdateUser(existing);
+        if (!string.IsNullOrEmpty(_model.Password))
+        {
+            UserService.UpdatePassword(existing.Id, _model.Password);
+        }
+        Nav.NavigateTo("/admin");
+    }
+
+    private class UserModel
+    {
+        public int Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public UserRole Role { get; set; } = UserRole.None;
+        public decimal Wte { get; set; } = 1.0m;
+        public bool Active { get; set; } = true;
+        public bool IsGlobalAdmin { get; set; } = false;
+        public string? Password { get; set; }
+    }
+}
