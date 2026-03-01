@@ -17,6 +17,7 @@ builder.Services.AddScoped<IUserService, UserService>();
 // resolves to the same instance so NotifyAuthenticationStateChanged works
 builder.Services.AddScoped<CustomAuthStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<CustomAuthStateProvider>());
+builder.Services.AddScoped<IRotaService, RotaService>();
 builder.Services.AddAuthorizationCore();
 
 var app = builder.Build();
@@ -24,7 +25,13 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    db.Database.EnsureCreated();
+    // Apply EF Core migrations to bring the database schema up to date.
+    // Create migrations and update the database with the CLI:
+    //   dotnet tool install --global dotnet-ef
+    //   dotnet ef migrations add AddRotas
+    //   dotnet ef database update
+    // Avoid automatically deleting the DB here to preserve data.
+    db.Database.Migrate();
     var userService = scope.ServiceProvider.GetRequiredService<IUserService>();
     // Seed default user if none exist
     if (!userService.GetAllUsers().Any())

@@ -1,0 +1,67 @@
+@page "/rotas"
+@inject IRotaService RotaService
+@inject IUserService UserService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<h3>Rotas</h3>
+
+@if (!_isGlobalAdmin)
+{
+    <div class="alert alert-danger">You are not authorized to manage rotas.</div>
+}
+else if (_rotas == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="mb-2">
+        <button class="btn btn-primary" @onclick="AddRota">Add Rota</button>
+    </div>
+    <table class="table">
+        <thead><tr><th>Name</th><th>Shifts</th><th>Doctors</th><th>Admins</th><th>Actions</th></tr></thead>
+        <tbody>
+        @foreach(var r in _rotas)
+        {
+            <tr>
+                <td>@r.Name</td>
+                <td>
+                    @foreach(var s in r.Shifts)
+                    {
+                        <div>@s.Day @s.Start - @s.End</div>
+                    }
+                </td>
+                <td>@(r.RotaDoctors?.Count() ?? 0)</td>
+                <td>@(r.RotaAdmins?.Count() ?? 0)</td>
+                <td><a class="btn btn-sm btn-link" href="/rotas/edit/@r.Id">Edit</a></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IEnumerable<Rota2.Models.Rota>? _rotas;
+    private bool _isGlobalAdmin = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+        _isGlobalAdmin = user?.FindFirst(c => c.Type == "IsGlobalAdmin")?.Value == "True";
+        if (_isGlobalAdmin)
+        {
+            _rotas = RotaService.GetAll();
+        }
+    }
+
+    private void AddRota()
+    {
+        NavTo("/rotas/edit");
+    }
+
+    [Inject]
+    private NavigationManager Nav { get; set; } = default!;
+
+    private void NavTo(string url) => Nav.NavigateTo(url);
+}

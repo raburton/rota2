@@ -3,6 +3,7 @@
 @inject IUserService UserService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Nav
+@inject IRotaService RotaService
 
 <h3>Admin Dashboard</h3>
 
@@ -18,6 +19,9 @@ else if (_users == null)
 }
 else
 {
+    <div class="mb-3">
+        <a class="btn btn-outline-secondary" href="/rotas">Manage Rotas (@(_rotasCount ?? 0))</a>
+    </div>
     <div class="mb-2">
         <button class="btn btn-primary" @onclick="AddUser">Add User</button>
     </div>
@@ -43,6 +47,7 @@ else
 @code {
     private IEnumerable<Rota2.Models.User>? _users;
     private bool _isGlobalAdmin = false;
+    private int? _rotasCount = null;
 
     protected override async Task OnInitializedAsync()
     {
@@ -52,6 +57,7 @@ else
         if (_isGlobalAdmin)
         {
             _users = UserService.GetAllUsers();
+            _rotasCount = RotaService.GetAll().Count();
         }
     }
 
