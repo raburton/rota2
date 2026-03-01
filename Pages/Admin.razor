@@ -16,9 +16,11 @@
 else
 {
     <div class="mb-3">
-        <a class="btn btn-outline-secondary me-2" href="/rotas">Manage Rotas (@(_rotasCount ?? 0))</a>
-        <a class="btn btn-outline-secondary me-2" href="/users">Manage Users (@(_usersCount ?? 0))</a>
-        <a class="btn btn-outline-secondary" href="/rotas/allocations">Shift Allocations</a>
+        <div class="btn-group" role="group">
+            <a class="btn btn-outline-secondary" href="/rotas"><i class="bi bi-calendar2-week me-1"></i>Manage Rotas (@(_rotasCount ?? 0))</a>
+            <a class="btn btn-outline-secondary" href="/users"><i class="bi bi-people me-1"></i>Manage Users (@(_usersCount ?? 0))</a>
+            <a class="btn btn-outline-secondary" href="/rotas/allocations"><i class="bi bi-diagram-3 me-1"></i>Shift Allocations</a>
+        </div>
     </div>
 }
 

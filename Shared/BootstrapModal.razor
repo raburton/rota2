@@ -1,0 +1,55 @@
+@using Microsoft.JSInterop
+<div class="modal fade" tabindex="-1" aria-hidden="true" @ref="_modalEl">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">@Title</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" @onclick="Close"></button>
+      </div>
+      <div class="modal-body">
+        @ChildContent
+      </div>
+      <div class="modal-footer">
+        @if (Footer != null)
+        {
+            @Footer
+        }
+        else
+        {
+            <button class="btn btn-secondary" type="button" data-bs-dismiss="modal" @onclick="Close">Cancel</button>
+            <button class="btn btn-primary" type="button" @onclick="Confirm">OK</button>
+        }
+      </div>
+    </div>
+  </div>
+</div>
+
+@code {
+    [Parameter] public string Title { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Footer { get; set; }
+    [Parameter] public EventCallback OnConfirm { get; set; }
+
+    private ElementReference _modalEl;
+    [Inject] private IJSRuntime JS { get; set; } = default!;
+
+    public async Task ShowAsync()
+    {
+        await JS.InvokeAsync<object>("showModalElement", _modalEl);
+    }
+
+    public async Task HideAsync()
+    {
+        await JS.InvokeAsync<object>("hideModalElement", _modalEl);
+    }
+
+    private async Task Confirm()
+    {
+        if (OnConfirm.HasDelegate) await OnConfirm.InvokeAsync(null);
+    }
+
+    private async Task Close()
+    {
+        await HideAsync();
+    }
+}

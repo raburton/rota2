@@ -14,28 +14,30 @@
 }
 else
 {
-    <div class="card mb-3 p-3">
-        <div class="row g-2">
-            <div class="col-md-4">
-                <label class="form-label">Rota</label>
-                <select class="form-select" @bind="_selectedRotaId">
-                    <option value="0">-- select rota --</option>
-                    @foreach(var r in _rotas)
-                    {
-                        <option value="@r.Id">@r.Name</option>
-                    }
-                </select>
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">Start date</label>
-                <InputDate class="form-control" @bind-Value="_startDate" />
-            </div>
-            <div class="col-md-3">
-                <label class="form-label">End date</label>
-                <InputDate class="form-control" @bind-Value="_endDate" />
-            </div>
-            <div class="col-md-2 d-flex align-items-end">
-                <button class="btn btn-primary" @onclick="Allocate">Allocate</button>
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2">
+                <div class="col-md-4">
+                    <label class="form-label">Rota</label>
+                    <select class="form-select" @bind="_selectedRotaId">
+                        <option value="0">-- select rota --</option>
+                        @foreach(var r in _rotas)
+                        {
+                            <option value="@r.Id">@r.Name</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Start date</label>
+                    <InputDate class="form-control" @bind-Value="_startDate" />
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">End date</label>
+                    <InputDate class="form-control" @bind-Value="_endDate" />
+                </div>
+                <div class="col-md-2 d-flex align-items-end">
+                    <button class="btn btn-primary" @onclick="Allocate"><i class="bi bi-calendar-plus me-1"></i>Allocate</button>
+                </div>
             </div>
         </div>
     </div>
@@ -44,9 +46,10 @@ else
     @if (_assignments != null)
     {
         <div class="mb-2">
-            <button class="btn btn-secondary" @onclick="Refresh">Refresh</button>
+            <button class="btn btn-secondary" @onclick="Refresh"><i class="bi bi-arrow-clockwise me-1"></i>Refresh</button>
         </div>
-        <table class="table">
+        <div class="table-responsive">
+        <table class="table table-sm table-striped align-middle">
             <thead><tr><th>Date</th><th>Shift</th><th>Time</th><th>Doctor</th><th>Actions</th></tr></thead>
             <tbody>
             @foreach(var a in _assignments)
@@ -57,19 +60,20 @@ else
                     <td>@a.Shift?.Start.ToString("hh\\:mm") - @a.Shift?.End.ToString("hh\\:mm")</td>
                     <td>@(a.User?.Name ?? "(none)")</td>
                     <td>
-                        <select class="form-select d-inline-block w-auto" @onchange="(e => Assign(a.Id, int.TryParse(e.Value?.ToString(), out var v) ? (int?)v : null))">
+                        <select class="form-select form-select-sm d-inline-block w-auto" @onchange="(e => Assign(a.Id, int.TryParse(e.Value?.ToString(), out var v) ? (int?)v : null))">
                             <option value="">(none)</option>
                             @foreach(var d in _doctors)
                             {
                                 <option value="@d.Id" selected="@(a.UserId == d.Id)">@d.Name</option>
                             }
                         </select>
-                        <button class="btn btn-sm btn-outline-danger ms-2" @onclick="(() => ClearAssignment(a.Id))">Clear</button>
+                        <button class="btn btn-sm btn-outline-danger ms-2" @onclick="(() => ClearAssignment(a.Id))"><i class="bi bi-x-lg"></i></button>
                     </td>
                 </tr>
             }
             </tbody>
         </table>
+        </div>
     }
 
     <!-- Separate view: show allocations for selected rota/date range (defaults to current month, no rota selected) -->

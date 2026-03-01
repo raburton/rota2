@@ -2,30 +2,43 @@
 @inject Rota2.Services.CustomAuthStateProvider AuthStateProvider
 @inject NavigationManager Nav
 
-<div class="container">
-    <div class="row">
-        <div class="col-3">
-            <nav>
-                <ul class="nav flex-column">
-                    <li class="nav-item"><NavLink class="nav-link" href="/">Home</NavLink></li>
-                    <li class="nav-item"><NavLink class="nav-link" href="/admin">Admin</NavLink></li>
-                    <li class="nav-item">
-                        <AuthorizeView>
-                            <Authorized Context="state">
-                                <div class="nav-link">Hello @state.User.Identity?.Name</div>
-                                <NavLink class="nav-link" href="/changepassword">Change password</NavLink>
-                                <a class="nav-link" href="#" @onclick="Logout">Logout</a>
-                            </Authorized>
-                            <NotAuthorized>
-                                <NavLink class="nav-link" href="/login">Login</NavLink>
-                            </NotAuthorized>
-                        </AuthorizeView>
-                    </li>
-                </ul>
-            </nav>
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="/">Rota2</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item"><NavLink class="nav-link" href="/">Home</NavLink></li>
+                <li class="nav-item"><NavLink class="nav-link" href="/rotas">Rotas</NavLink></li>
+                <li class="nav-item"><NavLink class="nav-link" href="/users">Users</NavLink></li>
+                <li class="nav-item"><NavLink class="nav-link" href="/rotas/allocations">Allocations</NavLink></li>
+                <li class="nav-item"><NavLink class="nav-link" href="/admin">Admin</NavLink></li>
+            </ul>
+            <div class="d-flex">
+                <AuthorizeView>
+                    <Authorized Context="state">
+                        <span class="navbar-text me-2">Hello @state.User.Identity?.Name</span>
+                        <button class="btn btn-light btn-sm" @onclick="Logout">Sign out</button>
+                    </Authorized>
+                    <NotAuthorized>
+                        <NavLink class="btn btn-light btn-sm" href="/login">Login</NavLink>
+                    </NotAuthorized>
+                </AuthorizeView>
+            </div>
         </div>
-        <div class="col-9">
-            @Body
+    </div>
+</nav>
+
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    @Body
+                </div>
+            </div>
         </div>
     </div>
 </div>
