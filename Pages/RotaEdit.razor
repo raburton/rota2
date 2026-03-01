@@ -43,23 +43,36 @@
     <button class="btn btn-secondary" type="button" @onclick="AddShift">Add Shift</button>
 
     <h5 class="mt-3">Doctors (Registrars or Consultants)</h5>
-    @foreach(var u in _allUsers)
+    @foreach(var u in _allUsers.Where(x => (x.Role == UserRole.Registrar || x.Role == UserRole.Consultant) && (x.Active || _model.DoctorIds.Contains(x.Id))))
     {
-        if (u.Role == UserRole.Registrar || u.Role == UserRole.Consultant)
-        {
+        var isSelected = _model.DoctorIds.Contains(u.Id);
             <div class="form-check">
-                <input class="form-check-input" type="checkbox" @onchange="@(e => ToggleDoctor(u.Id, (bool)((ChangeEventArgs)e).Value))" checked="@(_model.DoctorIds.Contains(u.Id))" />
+            <input class="form-check-input" type="checkbox" @onchange="@(e => ToggleDoctor(u.Id, (bool)((ChangeEventArgs)e).Value))" checked="@(isSelected)" />
+            @if (!u.Active)
+            {
+                <label class="form-check-label">@(new MarkupString($"<s>{u.Name} ({u.Email})</s>"))</label>
+            }
+            else
+            {
                 <label class="form-check-label">@u.Name (@u.Email)</label>
-            </div>
-        }
+            }
+        </div>
     }
 
     <h5 class="mt-3">Rota Admins</h5>
-    @foreach(var u in _allUsers)
+    @foreach(var u in _allUsers.Where(x => x.Active || _model.AdminIds.Contains(x.Id)))
     {
-        <div class="form-check">
-            <input class="form-check-input" type="checkbox" @onchange="@(e => ToggleAdmin(u.Id, (bool)((ChangeEventArgs)e).Value))" checked="@(_model.AdminIds.Contains(u.Id))" />
-            <label class="form-check-label">@u.Name (@u.Email)</label>
+        var isSelected = _model.AdminIds.Contains(u.Id);
+            <div class="form-check">
+            <input class="form-check-input" type="checkbox" @onchange="@(e => ToggleAdmin(u.Id, (bool)((ChangeEventArgs)e).Value))" checked="@(isSelected)" />
+            @if (!u.Active)
+            {
+                <label class="form-check-label">@(new MarkupString($"<s>{u.Name} ({u.Email})</s>"))</label>
+            }
+            else
+            {
+                <label class="form-check-label">@u.Name (@u.Email)</label>
+            }
         </div>
     }
 
