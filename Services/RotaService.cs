@@ -86,20 +86,69 @@ namespace Rota2.Services
             }
             else
             {
-                // round-robin assign doctors across slots to spread fairly
-                var idx = 0;
-                var n = doctorIds.Count;
-                foreach (var slot in slots)
+                // allocate based on WTE weights and spread assignments over the period
+                // build doctor list with weights (WTE)
+                var docs = rota.RotaDoctors
+                    .Select(rd => new {
+                        UserId = rd.UserId,
+                        Wte = rd.User?.Wte ?? 1.0m
+                    })
+                    .ToList();
+
+                // convert to mutable list of tuples: (UserId, WteDouble, AssignedCount, LastAssignedIndex)
+                var docList = docs.Select(d => (UserId: d.UserId, Wte: (double)d.Wte, Assigned: 0, LastAssigned: -100000)).ToList();
+
+                var totalWte = docList.Sum(d => d.Wte);
+                // if totalWte is zero (shouldn't happen) fall back to equal weights
+                if (totalWte <= 0)
                 {
-                    var userId = doctorIds[idx % n];
+                    for (int i = 0; i < docList.Count; i++) docList[i] = (docList[i].UserId, 1.0, 0, -100000);
+                    totalWte = docList.Sum(d => d.Wte);
+                }
+
+                for (var si = 0; si < slots.Count; si++)
+                {
+                    var slot = slots[si];
+                    // choose doctor with minimal (Assigned / Wte) ratio to keep assignment proportional
+                    int bestIdx = -1;
+                    double bestRatio = double.MaxValue;
+                    for (int di = 0; di < docList.Count; di++)
+                    {
+                        var d = docList[di];
+                        if (d.Wte <= 0) continue; // skip zero weight
+                        var ratio = (double)d.Assigned / d.Wte;
+                        if (ratio < bestRatio - 1e-9)
+                        {
+                            bestRatio = ratio;
+                            bestIdx = di;
+                        }
+                        else if (Math.Abs(ratio - bestRatio) < 1e-9)
+                        {
+                            // tie-break: prefer the doctor who was assigned least recently (smaller LastAssigned)
+                            if (bestIdx == -1 || d.LastAssigned < docList[bestIdx].LastAssigned)
+                            {
+                                bestIdx = di;
+                            }
+                        }
+                    }
+
+                    // if no suitable doctor found (all Wte zero), fallback to round-robin
+                    if (bestIdx == -1)
+                    {
+                        bestIdx = si % docList.Count;
+                    }
+
+                    var chosen = docList[bestIdx];
+                    // update assignment counts
+                    docList[bestIdx] = (chosen.UserId, chosen.Wte, chosen.Assigned + 1, si);
+
                     _db.ShiftAssignments.Add(new Rota2.Models.ShiftAssignment
                     {
                         RotaId = rotaId,
                         ShiftId = slot.shift.Id,
                         Date = slot.date,
-                        UserId = userId
+                        UserId = chosen.UserId
                     });
-                    idx++;
                 }
             }
             _db.SaveChanges();
