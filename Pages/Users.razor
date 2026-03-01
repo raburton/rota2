@@ -1,0 +1,60 @@
+@page "/users"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject IUserService UserService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<h3>User Management</h3>
+
+@if (!_isGlobalAdmin)
+{
+    <div class="alert alert-danger">You are not authorized to manage users.</div>
+}
+else if (_users == null)
+{
+    <p>Loading...</p>
+}
+else
+{
+    <div class="mb-2">
+        <button class="btn btn-primary" @onclick="AddUser">Add User</button>
+    </div>
+    <table class="table">
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>WTE</th><th>Active</th><th>Admin</th><th>Actions</th></tr></thead>
+        <tbody>
+        @foreach(var u in _users)
+        {
+            <tr>
+                <td>@u.Name</td>
+                <td>@u.Email</td>
+                <td>@u.Role</td>
+                <td>@u.Wte</td>
+                <td>@u.Active</td>
+                <td>@u.IsGlobalAdmin</td>
+                <td><a class="btn btn-sm btn-link" href="/admin/user/@u.Id">Edit</a></td>
+            </tr>
+        }
+        </tbody>
+    </table>
+}
+
+@code {
+    private IEnumerable<Rota2.Models.User>? _users;
+    private bool _isGlobalAdmin = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+        _isGlobalAdmin = user?.FindFirst(c => c.Type == "IsGlobalAdmin")?.Value == "True";
+        if (_isGlobalAdmin)
+        {
+            _users = UserService.GetAllUsers();
+        }
+    }
+
+    private void AddUser()
+    {
+        Nav.NavigateTo("/admin/user");
+    }
+}
