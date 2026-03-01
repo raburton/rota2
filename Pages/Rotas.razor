@@ -33,16 +33,45 @@ else
                 </td>
                 <td>@(r.RotaDoctors?.Count() ?? 0)</td>
                 <td>@(r.RotaAdmins?.Count() ?? 0)</td>
-                <td><a class="btn btn-sm btn-link" href="/rotas/edit/@r.Id">Edit</a></td>
+                <td>
+                    <a class="btn btn-sm btn-link" href="/rotas/edit/@r.Id">Edit</a>
+                    <button class="btn btn-sm btn-outline-secondary ms-2" @onclick="(() => OpenDuplicateModal(r.Id, r.Name))">Duplicate</button>
+                </td>
             </tr>
         }
         </tbody>
     </table>
+
+    @if (_showDuplicateModal)
+    {
+        <div class="modal show d-block" tabindex="-1" style="background: rgba(0,0,0,0.5);">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Duplicate rota</h5>
+                        <button type="button" class="btn-close" aria-label="Close" @onclick="CloseDuplicateModal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Creating a duplicate of <strong>@_duplicateSourceName</strong>. Enter a name for the new rota:</p>
+                        <input class="form-control" @bind="_duplicateNewName" />
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" @onclick="CloseDuplicateModal">Cancel</button>
+                        <button class="btn btn-primary" @onclick="ConfirmDuplicate">Create</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 }
 
 @code {
     private IEnumerable<Rota2.Models.Rota>? _rotas;
     private bool _isGlobalAdmin = false;
+    private bool _showDuplicateModal = false;
+    private int _duplicateSourceId = 0;
+    private string _duplicateSourceName = string.Empty;
+    private string _duplicateNewName = string.Empty;
 
     protected override async Task OnInitializedAsync()
     {
@@ -58,6 +87,34 @@ else
     private void AddRota()
     {
         NavTo("/rotas/edit");
+    }
+
+    private void OpenDuplicateModal(int sourceId, string sourceName)
+    {
+        _duplicateSourceId = sourceId;
+        _duplicateSourceName = sourceName;
+        _duplicateNewName = sourceName + " Copy";
+        _showDuplicateModal = true;
+    }
+
+    private void CloseDuplicateModal()
+    {
+        _showDuplicateModal = false;
+        _duplicateSourceId = 0;
+        _duplicateSourceName = string.Empty;
+        _duplicateNewName = string.Empty;
+    }
+
+    private void ConfirmDuplicate()
+    {
+        if (string.IsNullOrWhiteSpace(_duplicateNewName)) return;
+        var created = RotaService.DuplicateRota(_duplicateSourceId, _duplicateNewName.Trim());
+        _rotas = RotaService.GetAll();
+        _showDuplicateModal = false;
+        if (created != null)
+        {
+            NavTo($"/rotas/edit/{created.Id}");
+        }
     }
 
     [Inject]

@@ -173,5 +173,22 @@ namespace Rota2.Services
             _db.Rotas.Remove(existing);
             _db.SaveChanges();
         }
+
+        public Rota DuplicateRota(int sourceRotaId, string newName)
+        {
+            var src = _db.Rotas.Include(r => r.Shifts).SingleOrDefault(r => r.Id == sourceRotaId);
+            if (src == null) return null!;
+            var copy = new Rota
+            {
+                Name = newName
+            };
+            foreach (var s in src.Shifts)
+            {
+                copy.Shifts.Add(new Shift { Day = s.Day, Start = s.Start, End = s.End });
+            }
+            _db.Rotas.Add(copy);
+            _db.SaveChanges();
+            return copy;
+        }
     }
 }
