@@ -58,7 +58,7 @@
             {
                 var isSelected = _model.DoctorIds.Contains(u.Id);
                 <div class="form-check">
-                    <input class="form-check-input" type="checkbox" @onchange="@(e => ToggleDoctor(u.Id, (bool)((ChangeEventArgs)e).Value))" checked="@(isSelected)" />
+                    <input class="form-check-input" type="checkbox" @onchange="@(e => ToggleDoctor(u.Id, (e.Value as bool?) == true))" checked="@(isSelected)" />
                     @if (!u.Active)
                     {
                         <label class="form-check-label">@(new MarkupString($"<s>{u.Name} ({u.Email})</s>"))</label>
@@ -76,7 +76,7 @@
             {
                 var isSelected = _model.AdminIds.Contains(u.Id);
                 <div class="form-check">
-                    <input class="form-check-input" type="checkbox" @onchange="@(e => ToggleAdmin(u.Id, (bool)((ChangeEventArgs)e).Value))" checked="@(isSelected)" />
+                    <input class="form-check-input" type="checkbox" @onchange="@(e => ToggleAdmin(u.Id, (e.Value as bool?) == true))" checked="@(isSelected)" />
                     @if (!u.Active)
                     {
                         <label class="form-check-label">@(new MarkupString($"<s>{u.Name} ({u.Email})</s>"))</label>

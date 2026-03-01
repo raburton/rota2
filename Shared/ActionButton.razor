@@ -1,0 +1,48 @@
+@using Microsoft.JSInterop
+@inject NavigationManager Nav
+<button type="button" @onclick="HandleClick" class="btn @ButtonClass" id="@_id" title="@Tooltip" data-bs-toggle="@(HasTooltip?"tooltip":null)">
+    @if (!string.IsNullOrEmpty(Icon)) { <i class="bi @Icon me-1"></i> }
+    @if (!string.IsNullOrEmpty(Text)) { <span>@Text</span> }
+</button>
+
+@code {
+    [Parameter] public string Icon { get; set; } = string.Empty; // e.g. "bi-pencil"
+    [Parameter] public string Text { get; set; } = string.Empty;
+    [Parameter] public string Variant { get; set; } = "btn-outline-secondary"; // bootstrap btn variant
+    [Parameter] public string Size { get; set; } = string.Empty; // e.g. "btn-sm"
+    [Parameter] public string Class { get; set; } = string.Empty;
+    [Parameter] public string? Tooltip { get; set; }
+    [Parameter] public EventCallback OnClick { get; set; }
+    [Parameter] public string? Href { get; set; }
+
+    private string _id = "btn_" + Guid.NewGuid().ToString("N");
+
+    private bool HasTooltip => !string.IsNullOrEmpty(Tooltip);
+
+    private string ButtonClass => $"{Variant} {Size} {Class}".Trim();
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && HasTooltip)
+        {
+            await JSInvokeInit();
+        }
+    }
+
+    private async Task JSInvokeInit()
+    {
+        await JSRuntime.InvokeVoidAsync("initTooltipById", _id);
+    }
+
+    [Inject] private IJSRuntime JSRuntime { get; set; } = default!;
+
+    private async Task HandleClick()
+    {
+        if (!string.IsNullOrEmpty(Href))
+        {
+            Nav.NavigateTo(Href);
+            return;
+        }
+        if (OnClick.HasDelegate) await OnClick.InvokeAsync(null);
+    }
+}

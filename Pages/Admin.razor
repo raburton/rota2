@@ -17,9 +17,9 @@ else
 {
     <div class="mb-3">
         <div class="btn-group" role="group">
-            <a class="btn btn-outline-secondary" href="/rotas"><i class="bi bi-calendar2-week me-1"></i>Manage Rotas (@(_rotasCount ?? 0))</a>
-            <a class="btn btn-outline-secondary" href="/users"><i class="bi bi-people me-1"></i>Manage Users (@(_usersCount ?? 0))</a>
-            <a class="btn btn-outline-secondary" href="/rotas/allocations"><i class="bi bi-diagram-3 me-1"></i>Shift Allocations</a>
+            <ActionButton Icon="bi-calendar2-week" Text="@($"Manage Rotas ({_rotasCount ?? 0})")" Variant="btn-outline-secondary" Href="/rotas" />
+            <ActionButton Icon="bi-people" Text="@($"Manage Users ({_usersCount ?? 0})")" Variant="btn-outline-secondary" Href="/users" />
+            <ActionButton Icon="bi-diagram-3" Text="Shift Allocations" Variant="btn-outline-secondary" Href="/rotas/allocations" />
         </div>
     </div>
 }

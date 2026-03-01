@@ -21,7 +21,7 @@ else
                     <label class="form-label">Rota</label>
                     <select class="form-select" @bind="_selectedRotaId">
                         <option value="0">-- select rota --</option>
-                        @foreach(var r in _rotas)
+                        @foreach(var r in _rotas ?? Enumerable.Empty<Rota>())
                         {
                             <option value="@r.Id">@r.Name</option>
                         }
@@ -84,7 +84,7 @@ else
                 <label class="form-label">Rota</label>
                 <select class="form-select" @bind="_viewRotaId">
                     <option value="0">-- select rota --</option>
-                    @foreach(var r in _rotas)
+                    @foreach(var r in _rotas ?? Enumerable.Empty<Rota>())
                     {
                         <option value="@r.Id">@r.Name</option>
                     }

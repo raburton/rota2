@@ -1,10 +1,10 @@
 @using Microsoft.JSInterop
 <div class="modal fade" tabindex="-1" aria-hidden="true" @ref="_modalEl">
-  <div class="modal-dialog">
+  <div class="modal-dialog @SizeClass">
     <div class="modal-content">
       <div class="modal-header">
         <h5 class="modal-title">@Title</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close" @onclick="Close"></button>
+        <button type="button" class="btn-close" aria-label="Close" @onclick="Cancel"></button>
       </div>
       <div class="modal-body">
         @ChildContent
@@ -16,8 +16,11 @@
         }
         else
         {
-            <button class="btn btn-secondary" type="button" data-bs-dismiss="modal" @onclick="Close">Cancel</button>
-            <button class="btn btn-primary" type="button" @onclick="Confirm">OK</button>
+            @if (ShowCancel)
+            {
+                <button class="btn btn-secondary" type="button" @onclick="Cancel">@CancelText</button>
+            }
+            <button class="btn btn-primary" type="button" @onclick="Confirm">@ConfirmText</button>
         }
       </div>
     </div>
@@ -29,13 +32,21 @@
     [Parameter] public RenderFragment? ChildContent { get; set; }
     [Parameter] public RenderFragment? Footer { get; set; }
     [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+    [Parameter] public string ConfirmText { get; set; } = "OK";
+    [Parameter] public string CancelText { get; set; } = "Cancel";
+    [Parameter] public bool ShowCancel { get; set; } = true;
+    [Parameter] public bool DisableBackdropClose { get; set; } = false;
+    [Parameter] public string SizeClass { get; set; } = string.Empty; // e.g., "modal-lg"
 
     private ElementReference _modalEl;
     [Inject] private IJSRuntime JS { get; set; } = default!;
 
     public async Task ShowAsync()
     {
-        await JS.InvokeAsync<object>("showModalElement", _modalEl);
+        object? options = null;
+        if (DisableBackdropClose) options = new { backdrop = "static", keyboard = false };
+        await JS.InvokeAsync<object>("showModalElement", _modalEl, options);
     }
 
     public async Task HideAsync()
@@ -48,8 +59,9 @@
         if (OnConfirm.HasDelegate) await OnConfirm.InvokeAsync(null);
     }
 
-    private async Task Close()
+    private async Task Cancel()
     {
+        if (OnCancel.HasDelegate) await OnCancel.InvokeAsync(null);
         await HideAsync();
     }
 }
