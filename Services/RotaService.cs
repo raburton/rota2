@@ -87,13 +87,31 @@ namespace Rota2.Services
             else
             {
                 // allocate based on WTE weights and spread assignments over the period
-                // build doctor list with weights (WTE)
+                // build doctor list with weights (WTE) and exclude inactive users
                 var docs = rota.RotaDoctors
+                    .Where(rd => rd.User != null && rd.User.Active)
                     .Select(rd => new {
                         UserId = rd.UserId,
                         Wte = rd.User?.Wte ?? 1.0m
                     })
                     .ToList();
+
+                // if no active doctors, create empty assignments
+                if (!docs.Any())
+                {
+                    foreach (var slot in slots)
+                    {
+                        _db.ShiftAssignments.Add(new Rota2.Models.ShiftAssignment
+                        {
+                            RotaId = rotaId,
+                            ShiftId = slot.shift.Id,
+                            Date = slot.date,
+                            UserId = null
+                        });
+                    }
+                    _db.SaveChanges();
+                    return;
+                }
 
                 // convert to mutable list of tuples: (UserId, WteDouble, AssignedCount, LastAssignedIndex)
                 var docList = docs.Select(d => (UserId: d.UserId, Wte: (double)d.Wte, Assigned: 0, LastAssigned: -100000)).ToList();
