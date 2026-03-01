@@ -28,7 +28,7 @@ else
                 <td>
                     @foreach(var s in r.Shifts)
                     {
-                        <div>@s.Day @s.Start - @s.End</div>
+                        <div>@s.Day @s.Start.ToString(@"HH\:mm") - @s.End.ToString(@"HH\:mm")</div>
                     }
                 </td>
                 <td>@(r.RotaDoctors?.Count() ?? 0)</td>
