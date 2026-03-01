@@ -1,4 +1,5 @@
 @page "/users"
+@using Rota2.Services
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inject IUserService UserService
 @inject AuthenticationStateProvider AuthStateProvider
@@ -16,22 +17,66 @@ else if (_users == null)
 }
 else
 {
-    <div class="mb-2">
-        <button class="btn btn-primary" @onclick="AddUser">Add User</button>
+    <div class="d-flex gap-2 mb-3">
+        <div>
+            <label class="form-label">Status</label>
+            <select class="form-select" @bind="_statusFilter">
+                <option value="Active">Active</option>
+                <option value="Inactive">Inactive</option>
+                <option value="All">All</option>
+            </select>
+        </div>
+        <div>
+            <label class="form-label">Role</label>
+            <select class="form-select" @bind="_roleFilter">
+                <option value="All">All</option>
+                @foreach(var r in Enum.GetValues(typeof(Rota2.Models.UserRole)).Cast<Rota2.Models.UserRole>())
+                {
+                    <option value="@r">@r</option>
+                }
+            </select>
+        </div>
+        <div class="d-flex align-items-end">
+            <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="adminOnly" @bind="_adminOnly" />
+                <label class="form-check-label" for="adminOnly">Admins only</label>
+            </div>
+        </div>
+        <div class="flex-grow-1">
+            <label class="form-label">Search</label>
+            <input class="form-control" @bind="_search" placeholder="Search name" />
+        </div>
+        <div class="align-self-end">
+            <button class="btn btn-primary" @onclick="AddUser">Add User</button>
+        </div>
     </div>
+
     <table class="table">
-        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>WTE</th><th>Active</th><th>Admin</th><th>Actions</th></tr></thead>
+        <thead>
+            <tr>
+                <th @onclick="() => SetSort(nameof(Rota2.Models.User.Name))" style="cursor:pointer">Name @SortIcon(nameof(Rota2.Models.User.Name))</th>
+                <th @onclick="() => SetSort(nameof(Rota2.Models.User.Email))" style="cursor:pointer">Email @SortIcon(nameof(Rota2.Models.User.Email))</th>
+                <th @onclick="() => SetSort(nameof(Rota2.Models.User.Role))" style="cursor:pointer">Role @SortIcon(nameof(Rota2.Models.User.Role))</th>
+                <th @onclick="() => SetSort(nameof(Rota2.Models.User.Wte))" style="cursor:pointer">WTE @SortIcon(nameof(Rota2.Models.User.Wte))</th>
+                <th @onclick="() => SetSort(nameof(Rota2.Models.User.Active))" style="cursor:pointer">Active @SortIcon(nameof(Rota2.Models.User.Active))</th>
+                <th @onclick="() => SetSort(nameof(Rota2.Models.User.IsGlobalAdmin))" style="cursor:pointer">Admin @SortIcon(nameof(Rota2.Models.User.IsGlobalAdmin))</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
         <tbody>
-        @foreach(var u in _users)
+        @foreach(var u in DisplayUsers)
         {
             <tr>
                 <td>@u.Name</td>
                 <td>@u.Email</td>
                 <td>@u.Role</td>
                 <td>@u.Wte</td>
-                <td>@u.Active</td>
-                <td>@u.IsGlobalAdmin</td>
-                <td><a class="btn btn-sm btn-link" href="/admin/user/@u.Id">Edit</a></td>
+                <td>@(u.Active ? "Yes" : "No")</td>
+                <td>@(u.IsGlobalAdmin ? "Yes" : "No")</td>
+                <td>
+                    <a class="btn btn-sm btn-link" href="/admin/user/@u.Id">Edit</a>
+                    <button class="btn btn-sm btn-outline-secondary ms-2" @onclick="() => ToggleActive(u.Id)">@(u.Active ? "Deactivate" : "Reactivate")</button>
+                </td>
             </tr>
         }
         </tbody>
@@ -41,6 +86,21 @@ else
 @code {
     private IEnumerable<Rota2.Models.User>? _users;
     private bool _isGlobalAdmin = false;
+    private string _statusFilter { get; set; } = "Active"; // Active, Inactive, All
+    private string _roleFilter { get; set; } = "All";
+    private bool _adminOnly { get; set; } = false;
+    private string _search { get; set; } = string.Empty;
+    private string _sortColumn { get; set; } = nameof(Rota2.Models.User.Name);
+    private bool _sortAsc { get; set; } = true;
+
+    private IEnumerable<Rota2.Models.User> DisplayUsers =>
+        (_users ?? Enumerable.Empty<Rota2.Models.User>())
+            .Where(u => _statusFilter == "All" ? true : (_statusFilter == "Active" ? u.Active : !u.Active))
+            .Where(u => _adminOnly ? u.IsGlobalAdmin : true)
+            .Where(u => _roleFilter == "All" ? true : u.Role.ToString() == _roleFilter)
+            .Where(u => string.IsNullOrWhiteSpace(_search) ? true : u.Name.Contains(_search, StringComparison.OrdinalIgnoreCase))
+            .OrderByDynamic(_sortColumn, _sortAsc)
+            .ToList();
 
     protected override async Task OnInitializedAsync()
     {
@@ -56,5 +116,26 @@ else
     private void AddUser()
     {
         Nav.NavigateTo("/admin/user");
+    }
+
+    private async Task ToggleActive(int id)
+    {
+        var u = UserService.GetById(id);
+        if (u == null) return;
+        u.Active = !u.Active;
+        UserService.UpdateUser(u);
+        _users = UserService.GetAllUsers();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void SetSort(string col)
+    {
+        if (_sortColumn == col) _sortAsc = !_sortAsc; else { _sortColumn = col; _sortAsc = true; }
+    }
+
+    private string SortIcon(string col)
+    {
+        if (_sortColumn != col) return string.Empty;
+        return _sortAsc ? " ▲" : " ▼";
     }
 }
