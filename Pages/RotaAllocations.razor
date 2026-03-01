@@ -40,6 +40,7 @@ else
         </div>
     </div>
 
+    <!-- Create/view assignments table (shows assignments related to actions above) -->
     @if (_assignments != null)
     {
         <div class="mb-2">
@@ -70,6 +71,70 @@ else
             </tbody>
         </table>
     }
+
+    <!-- Separate view: show allocations for selected rota/date range (defaults to current month, no rota selected) -->
+    <div class="card mt-4 p-3">
+        <h5>Show allocations</h5>
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label">Rota</label>
+                <select class="form-select" @bind="_viewRotaId">
+                    <option value="0">-- select rota --</option>
+                    @foreach(var r in _rotas)
+                    {
+                        <option value="@r.Id">@r.Name</option>
+                    }
+                </select>
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Start date</label>
+                <InputDate class="form-control" @bind-Value="_viewStartDate" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">End date</label>
+                <InputDate class="form-control" @bind-Value="_viewEndDate" />
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+                <button class="btn btn-primary" @onclick="LoadViewAssignments">Show</button>
+            </div>
+        </div>
+
+        @if (_viewRotaId == 0)
+        {
+            <div class="mt-3 text-muted">Select a rota to see allocations.</div>
+        }
+        else if (_viewAssignments == null || !_viewAssignments.Any())
+        {
+            <div class="mt-3">No allocations found for the selected period.</div>
+        }
+        else
+        {
+            <table class="table mt-3">
+                <thead><tr><th>Date</th><th>Shift</th><th>Time</th><th>Doctor</th><th>Actions</th></tr></thead>
+                <tbody>
+                @foreach(var a in _viewAssignments)
+                {
+                    <tr>
+                        <td>@a.Date.ToString("yyyy-MM-dd")</td>
+                        <td>@a.Shift?.Day</td>
+                        <td>@a.Shift?.Start.ToString("hh\\:mm") - @a.Shift?.End.ToString("hh\\:mm")</td>
+                        <td>@(a.User?.Name ?? "(none)")</td>
+                        <td>
+                            <select class="form-select d-inline-block w-auto" @onchange="(e => AssignView(a.Id, int.TryParse(e.Value?.ToString(), out var v) ? (int?)v : null))">
+                                <option value="">(none)</option>
+                                @foreach(var d in _doctors)
+                                {
+                                    <option value="@d.Id" selected="@(a.UserId == d.Id)">@d.Name</option>
+                                }
+                            </select>
+                            <button class="btn btn-sm btn-outline-danger ms-2" @onclick="(() => ClearViewAssignment(a.Id))">Clear</button>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        }
+    </div>
 }
 
 @code {
@@ -80,6 +145,11 @@ else
     private int _selectedRotaId = 0;
     private DateTime _startDate = DateTime.Today;
     private DateTime _endDate = DateTime.Today.AddDays(7);
+    // view filters (separate from create controls)
+    private int _viewRotaId = 0;
+    private DateTime _viewStartDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime _viewEndDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(1).AddDays(-1);
+    private IEnumerable<Rota2.Models.ShiftAssignment>? _viewAssignments;
 
     protected override async Task OnInitializedAsync()
     {
@@ -98,7 +168,11 @@ else
         var end = _endDate.Date;
         if (end < start) return;
         RotaService.CreateAssignments(_selectedRotaId, start, end);
-        LoadAssignments();
+        // after creating, set view filters to the newly created range and rota
+        _viewRotaId = _selectedRotaId;
+        _viewStartDate = start;
+        _viewEndDate = end;
+        LoadViewAssignments();
     }
 
     private void LoadAssignments()
@@ -107,6 +181,14 @@ else
         var start = _startDate.Date;
         var end = _endDate.Date;
         _assignments = RotaService.GetAssignments(_selectedRotaId, start, end);
+    }
+
+    private void LoadViewAssignments()
+    {
+        if (_viewRotaId == 0) { _viewAssignments = null; return; }
+        var start = _viewStartDate.Date;
+        var end = _viewEndDate.Date;
+        _viewAssignments = RotaService.GetAssignments(_viewRotaId, start, end);
     }
 
     private void Refresh() => LoadAssignments();
@@ -121,5 +203,17 @@ else
     {
         RotaService.UpdateAssignment(assignmentId, null);
         LoadAssignments();
+    }
+
+    private void AssignView(int assignmentId, int? userId)
+    {
+        RotaService.UpdateAssignment(assignmentId, userId);
+        LoadViewAssignments();
+    }
+
+    private void ClearViewAssignment(int assignmentId)
+    {
+        RotaService.UpdateAssignment(assignmentId, null);
+        LoadViewAssignments();
     }
 }
