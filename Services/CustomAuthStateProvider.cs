@@ -9,12 +9,10 @@ namespace Rota2.Services
         private ClaimsPrincipal _anon = new ClaimsPrincipal(new ClaimsIdentity());
         private ClaimsPrincipal _current = null!;
         private readonly IHttpContextAccessor _httpContextAccessor;
-        private readonly IUserService _userService;
 
-        public CustomAuthStateProvider(IHttpContextAccessor httpContextAccessor, IUserService userService)
+        public CustomAuthStateProvider(IHttpContextAccessor httpContextAccessor)
         {
             _httpContextAccessor = httpContextAccessor;
-            _userService = userService;
         }
 
         public override Task<AuthenticationState> GetAuthenticationStateAsync()
@@ -28,26 +26,11 @@ namespace Rota2.Services
             try
             {
                 var ctx = _httpContextAccessor.HttpContext;
-                var cookies = ctx?.Request?.Cookies;
-                if (cookies != null && cookies.TryGetValue("RotaUserId", out var idVal))
+                if (ctx?.User?.Identity?.IsAuthenticated == true)
                 {
-                    if (int.TryParse(idVal, out var id))
-                    {
-                        var user = _userService.GetById(id);
-                        if (user != null && user.Active)
-                        {
-                            var identity = new ClaimsIdentity(new[]
-                            {
-                                new Claim(ClaimTypes.Name, user.Name),
-                                new Claim(ClaimTypes.Email, user.Email),
-                                new Claim("IsGlobalAdmin", user.IsGlobalAdmin.ToString()),
-                                new Claim("UserId", user.Id.ToString()),
-                                new Claim("Role", user.Role.ToString())
-                            }, "apiauth");
-                            _current = new ClaimsPrincipal(identity);
-                            return Task.FromResult(new AuthenticationState(_current));
-                        }
-                    }
+                    // Use the authenticated principal supplied by the ASP.NET cookie middleware
+                    _current = ctx.User;
+                    return Task.FromResult(new AuthenticationState(_current));
                 }
             }
             catch
