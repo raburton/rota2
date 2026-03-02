@@ -15,7 +15,6 @@
                 <li class="nav-item"><NavLink class="nav-link" href="/rotas">Rotas</NavLink></li>
                 <li class="nav-item"><NavLink class="nav-link" href="/users">Users</NavLink></li>
                 <li class="nav-item"><NavLink class="nav-link" href="/rotas/allocations">Allocations</NavLink></li>
-                <li class="nav-item"><NavLink class="nav-link" href="/dashboard">Dashboard</NavLink></li>
             </ul>
             <div class="d-flex">
                 <AuthorizeView>
@@ -24,7 +23,7 @@
                         <button class="btn btn-light btn-sm" @onclick="Logout">Sign out</button>
                     </Authorized>
                     <NotAuthorized>
-                        <NavLink class="btn btn-light btn-sm" href="/login">Login</NavLink>
+                        <NavLink class="btn btn-light btn-sm" href="@($"/login?returnUrl={Uri.EscapeDataString(Nav.Uri)}")">Login</NavLink>
                     </NotAuthorized>
                 </AuthorizeView>
             </div>

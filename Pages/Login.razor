@@ -1,9 +1,9 @@
 @page "/login"
+@using Microsoft.AspNetCore.WebUtilities
 @inject IUserService UserService
 @inject NavigationManager Nav
 @inject CustomAuthStateProvider AuthState
 @inject HttpClient Http
-@inject IJSRuntime JS
 
 <div class="row justify-content-center">
     <div class="col-md-6">
@@ -38,6 +38,20 @@
     private LoginModel _model = new LoginModel();
     private string _error = string.Empty;
 
+    private string? _returnUrl;
+
+    protected override void OnInitialized()
+    {
+        // parse returnUrl from query string if provided
+        var uri = new Uri(Nav.Uri);
+        var qs = uri.Query;
+        if (!string.IsNullOrEmpty(qs))
+        {
+            var parsed = QueryHelpers.ParseQuery(qs);
+            if (parsed.TryGetValue("returnUrl", out var rv)) _returnUrl = rv.ToString();
+        }
+    }
+
     private async Task HandleLogin()
     {
         var payload = new { Email = _model.Email, Password = _model.Password };
@@ -54,7 +68,36 @@
         {
             AuthState.MarkUserAsAuthenticated(new Rota2.Models.User { Id = user.Id, Name = user.Name, Email = user.Email, IsGlobalAdmin = user.IsGlobalAdmin, Role = Enum.Parse<Rota2.Models.UserRole>(user.Role) });
         }
-        Nav.NavigateTo("/");
+        // navigate to returnUrl if provided and local, otherwise to dashboard
+        if (!string.IsNullOrEmpty(_returnUrl) && IsLocalUrl(_returnUrl))
+        {
+            Nav.NavigateTo(_returnUrl);
+        }
+        else
+        {
+            Nav.NavigateTo("/dashboard");
+        }
+    }
+
+    private bool IsLocalUrl(string? url)
+    {
+        if (string.IsNullOrEmpty(url)) return false;
+        // relative paths are allowed
+        if (url.StartsWith("/")) return true;
+        // absolute URIs are allowed only if same origin
+        if (Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            try
+            {
+                var baseUri = new Uri(Nav.BaseUri);
+                return uri.Scheme == baseUri.Scheme && uri.Host == baseUri.Host && uri.Port == baseUri.Port;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+        return false;
     }
 
     private class UserInfo { public int Id { get; set; } public string Name { get; set; } = string.Empty; public string Email { get; set; } = string.Empty; public bool IsGlobalAdmin { get; set; } public string Role { get; set; } = string.Empty; }

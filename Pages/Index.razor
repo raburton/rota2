@@ -1,23 +1,24 @@
 @page "/"
 @inject AuthenticationStateProvider AuthStateProvider
-@using Microsoft.AspNetCore.Components.Authorization
+@inject NavigationManager Nav
 
-<AuthorizeView>
-    <Authorized>
-        <div class="card">
-            <div class="card-body">
-                <h3>Welcome</h3>
-                <p>You are logged in.</p>
-                <ActionButton Icon="bi-speedometer2" Text="Dashboard" Variant="btn-primary" Href="/dashboard" />
-            </div>
-        </div>
-    </Authorized>
-    <NotAuthorized>
-        <div class="card">
-            <div class="card-body">
-                <h3>Welcome</h3>
-                <p>Please <NavLink href="/login">login</NavLink>.</p>
-            </div>
-        </div>
-    </NotAuthorized>
-</AuthorizeView>
+<div class="text-center mt-5">
+    <p>Redirecting…</p>
+</div>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+        var isAuthenticated = user?.Identity?.IsAuthenticated == true;
+        if (isAuthenticated)
+        {
+            Nav.NavigateTo("/dashboard");
+        }
+        else
+        {
+            Nav.NavigateTo("/login");
+        }
+    }
+}
