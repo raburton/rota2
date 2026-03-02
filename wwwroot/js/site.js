@@ -49,3 +49,25 @@ window.setCookie = (name, value, days) => {
 window.deleteCookie = (name) => {
     document.cookie = name + "=; Max-Age=0; path=/";
 };
+
+window.postJsonWithCredentials = async (url, payload) => {
+    const res = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload)
+    });
+    if (!res.ok) {
+        return { ok: false, status: res.status, body: null };
+    }
+    const body = await res.text();
+    return { ok: true, status: res.status, body: body };
+};
+
+window.postEmptyWithCredentials = async (url) => {
+    const res = await fetch(url, {
+        method: 'POST',
+        credentials: 'include'
+    });
+    return { ok: res.ok, status: res.status };
+};

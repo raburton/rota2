@@ -3,7 +3,7 @@
 @inject IUserService UserService
 @inject NavigationManager Nav
 @inject CustomAuthStateProvider AuthState
-@inject HttpClient Http
+@inject IJSRuntime JS
 
 <div class="row justify-content-center">
     <div class="col-md-6">
@@ -55,18 +55,30 @@
     private async Task HandleLogin()
     {
         var payload = new { Email = _model.Email, Password = _model.Password };
-        var loginUri = new Uri(new Uri(Nav.BaseUri), "account/login");
-        var resp = await Http.PostAsJsonAsync(loginUri, payload);
-        if (!resp.IsSuccessStatusCode)
+        var loginUri = new Uri(new Uri(Nav.BaseUri), "account/login").ToString();
+        // Use browser fetch via JS interop so Set-Cookie from server is applied in the browser
+        var result = await JS.InvokeAsync<System.Text.Json.JsonElement>("postJsonWithCredentials", loginUri, payload);
+        if (!result.TryGetProperty("ok", out var okProp) || !okProp.GetBoolean())
         {
             _error = "Invalid credentials";
             return;
         }
-        // server issued signed auth cookie; update auth state for current circuit
-        var user = await resp.Content.ReadFromJsonAsync<UserInfo>();
+        var bodyStr = result.GetProperty("body").GetString();
+        if (string.IsNullOrEmpty(bodyStr))
+        {
+            _error = "Invalid server response";
+            return;
+        }
+        var user = System.Text.Json.JsonSerializer.Deserialize<UserInfo>(bodyStr, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
         if (user != null)
         {
-            AuthState.MarkUserAsAuthenticated(new Rota2.Models.User { Id = user.Id, Name = user.Name, Email = user.Email, IsGlobalAdmin = user.IsGlobalAdmin, Role = Enum.Parse<Rota2.Models.UserRole>(user.Role) });
+            // parse role safely
+            var roleParsed = Rota2.Models.UserRole.None;
+            if (!string.IsNullOrEmpty(user.Role) && System.Enum.TryParse<Rota2.Models.UserRole>(user.Role, out var parsed))
+            {
+                roleParsed = parsed;
+            }
+            AuthState.MarkUserAsAuthenticated(new Rota2.Models.User { Id = user.Id, Name = user.Name, Email = user.Email, IsGlobalAdmin = user.IsGlobalAdmin, Role = roleParsed });
         }
         // navigate to returnUrl if provided and local, otherwise to dashboard
         if (!string.IsNullOrEmpty(_returnUrl) && IsLocalUrl(_returnUrl))

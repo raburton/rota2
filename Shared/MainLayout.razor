@@ -50,8 +50,9 @@
     {
         try
         {
-            var logoutUri = new Uri(new Uri(Nav.BaseUri), "account/logout");
-            await Http.PostAsync(logoutUri, null);
+            var logoutUri = new Uri(new Uri(Nav.BaseUri), "account/logout").ToString();
+            // use browser fetch via JS to ensure cookie is cleared in browser
+            await JS.InvokeAsync<System.Text.Json.JsonElement>("postEmptyWithCredentials", logoutUri);
         }
         catch { }
         AuthStateProvider.MarkUserAsLoggedOut();
