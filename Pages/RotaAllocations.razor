@@ -8,7 +8,7 @@
 
 <h3>Rota Allocations</h3>
 
-@if (!_isGlobalAdmin)
+@if (!(_isGlobalAdmin || _isRotaAdmin))
 {
     <div class="alert alert-danger">Not authorized.</div>
 }
@@ -173,6 +173,8 @@ else
     private IEnumerable<Rota2.Models.ShiftAssignment>? _assignments;
     private List<Rota2.Models.User> _doctors = new List<Rota2.Models.User>();
     private bool _isGlobalAdmin = false;
+    private bool _isRotaAdmin = false;
+    private HashSet<int> _allowedRotaIds = new HashSet<int>();
     private int _selectedRotaId = 0;
     private DateTime _startDate = DateTime.Today;
     private DateTime _endDate = DateTime.Today.AddDays(7);
@@ -195,14 +197,36 @@ else
         var state = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = state.User;
         _isGlobalAdmin = user?.FindFirst(c => c.Type == "IsGlobalAdmin")?.Value == "True";
-        if (!_isGlobalAdmin) return;
-        _rotas = RotaService.GetAll();
-        _doctors = UserService.GetAllUsers().Where(u => u.Role == UserRole.Registrar || u.Role == UserRole.Consultant).ToList();
+        int currentUserId = 0;
+        int.TryParse(user?.FindFirst(c => c.Type == "UserId")?.Value, out currentUserId);
+        _isRotaAdmin = !_isGlobalAdmin && currentUserId > 0 && RotaService.IsRotaAdmin(currentUserId);
+
+        // load rotas based on privileges
+        var allRotas = RotaService.GetAll().ToList();
+        if (_isGlobalAdmin)
+        {
+            _rotas = allRotas;
+            _allowedRotaIds = allRotas.Select(r => r.Id).ToHashSet();
+        }
+        else if (_isRotaAdmin)
+        {
+            var allowed = allRotas.Where(r => r.RotaAdmins.Any(ra => ra.UserId == currentUserId)).ToList();
+            _rotas = allowed;
+            _allowedRotaIds = allowed.Select(r => r.Id).ToHashSet();
+        }
+
+        // load doctor list for any admin type
+        if (_isGlobalAdmin || _isRotaAdmin)
+        {
+            _doctors = UserService.GetAllUsers().Where(u => u.Role == UserRole.Registrar || u.Role == UserRole.Consultant).ToList();
+        }
     }
 
     private void Allocate()
     {
         if (_selectedRotaId == 0) return;
+        // ensure user is allowed to allocate for this rota
+        if (!(_isGlobalAdmin || _allowedRotaIds.Contains(_selectedRotaId))) return;
         var start = _startDate.Date;
         var end = _endDate.Date;
         if (end < start) return;
