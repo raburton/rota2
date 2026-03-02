@@ -47,15 +47,17 @@
     [Parameter]
     public string Title { get; set; } = "Assign doctor";
 
-    public Task<int?> ShowAsync(IEnumerable<User> doctors, int? selectedUserId)
+    public async Task<int?> ShowAsync(IEnumerable<User> doctors, int? selectedUserId)
     {
         _doctors = doctors;
         _selectedUserId = selectedUserId;
         _search = string.Empty;
         _roleFilter = "All";
         _tcs = new System.Threading.Tasks.TaskCompletionSource<int?>();
-        _ = InvokeAsync(async () => { if (_modal != null) await _modal.ShowAsync(); });
-        return _tcs.Task;
+        // ensure component re-renders with the provided doctors before the modal is shown
+        await InvokeAsync(StateHasChanged);
+        if (_modal != null) await _modal.ShowAsync();
+        return await _tcs.Task;
     }
 
     public async Task HideAsync()

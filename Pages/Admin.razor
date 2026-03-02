@@ -8,17 +8,23 @@
 
 <p>This is the application dashboard. Admin controls are shown below for global admins.</p>
 
-@if (!_isGlobalAdmin)
+@if (_isGlobalAdmin || _isRotaAdmin)
 {
-    <div class="alert alert-info">Welcome to your dashboard. Contact an administrator for additional access.</div>
-}
-else
-{
-    <div class="mb-3">
-        <div class="btn-group" role="group">
-            <ActionButton Icon="bi-calendar2-week" Text="@($"Manage Rotas ({_rotasCount ?? 0})")" Variant="btn-outline-secondary" Href="/rotas" />
-            <ActionButton Icon="bi-people" Text="@($"Manage Users ({_usersCount ?? 0})")" Variant="btn-outline-secondary" Href="/users" />
-            <ActionButton Icon="bi-diagram-3" Text="Shift Allocations" Variant="btn-outline-secondary" Href="/rotas/allocations" />
+    <div class="card mb-3">
+        <div class="card-body">
+            <h5>Admin</h5>
+            <div class="mb-3 d-flex">
+                @if (_isGlobalAdmin)
+                {
+                    <ActionButton Icon="bi-calendar2-week" Text="@($"Manage Rotas ({_rotasCount ?? 0})")" Variant="btn-outline-secondary" Href="/rotas" />
+                    <ActionButton Icon="bi-people" Text="@($"Manage Users ({_activeUsersCount ?? 0})")" Variant="btn-outline-secondary ms-2" Href="/users" />
+                    <ActionButton Icon="bi-diagram-3" Text="Shift Allocations" Variant="btn-outline-secondary ms-2" Href="/rotas/allocations" />
+                }
+                else if (_isRotaAdmin)
+                {
+                    <ActionButton Icon="bi-diagram-3" Text="Shift Allocations" Variant="btn-outline-secondary" Href="/rotas/allocations" />
+                }
+            </div>
         </div>
     </div>
 }
@@ -30,8 +36,8 @@ else
         <div class="card-body">
             <h5>Doctors</h5>
             <p class="mb-2">Doctor tools for registrars and consultants.</p>
-            <div class="d-flex">
-                <ActionButton Icon="bi-calendar-check" Text="My Allocations" Variant="btn-outline-primary" Href="/myallocations" />
+                <div class="d-flex">
+                <ActionButton Icon="bi-calendar-check" Text="My Allocations" Variant="btn-outline-secondary" Href="/myallocations" />
                 <ActionButton Icon="bi-calendar-x" Text="Manage Leave" Variant="btn-outline-secondary ms-2" OnClick="@OpenLeaveManager" />
             </div>
         </div>
@@ -43,7 +49,8 @@ else
 @code {
     private bool _isGlobalAdmin = false;
     private int? _rotasCount = null;
-    private int? _usersCount = null;
+    private int? _activeUsersCount = null;
+    private bool _isRotaAdmin = false;
     private Shared.LeaveManager? _leaveManager;
     private int _currentUserId = 0;
     private bool _isDoctorRole = false;
@@ -59,7 +66,17 @@ else
         if (_isGlobalAdmin)
         {
             _rotasCount = RotaService.GetAll().Count();
-            _usersCount = UserService.GetAllUsers().Count();
+            _activeUsersCount = UserService.GetAllUsers().Count(u => u.Active);
+        }
+        // also show admin card for rota admins (even if not global)
+        if (!_isGlobalAdmin && _currentUserId > 0)
+        {
+            var rotas = RotaService.GetAll();
+            _isRotaAdmin = rotas.Any(r => r.RotaAdmins.Any(ra => ra.UserId == _currentUserId));
+            if (_isRotaAdmin)
+            {
+                _rotasCount = rotas.Count();
+            }
         }
     }
 

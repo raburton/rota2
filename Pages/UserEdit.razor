@@ -106,7 +106,7 @@
                 IsGlobalAdmin = _model.IsGlobalAdmin
             };
             UserService.CreateUser(u, _model.Password ?? "");
-            Nav.NavigateTo("/admin");
+            Nav.NavigateTo("/users");
             return;
         }
 
@@ -127,7 +127,7 @@
         {
             UserService.UpdatePassword(existing.Id, _model.Password);
         }
-        Nav.NavigateTo("/admin");
+        Nav.NavigateTo("/users");
     }
 
     private class UserModel

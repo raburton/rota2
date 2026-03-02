@@ -2,6 +2,8 @@
 @inject Rota2.Services.CustomAuthStateProvider AuthStateProvider
 @inject NavigationManager Nav
 @inject IJSRuntime JS
+@inject IRotaService RotaService
+
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container-fluid">
@@ -12,9 +14,22 @@
                 <div class="collapse navbar-collapse" id="navbarSupportedContent">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
                 <li class="nav-item"><NavLink class="nav-link" href="/">Home</NavLink></li>
-                <li class="nav-item"><NavLink class="nav-link" href="/rotas">Rotas</NavLink></li>
-                <li class="nav-item"><NavLink class="nav-link" href="/users">Users</NavLink></li>
-                <li class="nav-item"><NavLink class="nav-link" href="/rotas/allocations">Allocations</NavLink></li>
+                @if (_showRotasLink)
+                {
+                    <li class="nav-item"><NavLink class="nav-link" href="/rotas">Rotas</NavLink></li>
+                }
+                @if (_showUsersLink)
+                {
+                    <li class="nav-item"><NavLink class="nav-link" href="/users">Users</NavLink></li>
+                }
+                @if (_showAllocationsLink)
+                {
+                    <li class="nav-item"><NavLink class="nav-link" href="/rotas/allocations">Allocations</NavLink></li>
+                }
+                @if (_showMyAllocationsLink)
+                {
+                    <li class="nav-item"><NavLink class="nav-link" href="/myallocations">My Allocations</NavLink></li>
+                }
             </ul>
             <div class="d-flex">
                 <AuthorizeView>
@@ -45,6 +60,44 @@
 
 @code {
     [Inject] private HttpClient Http { get; set; } = default!;
+
+    private bool _showRotasLink = false;
+    private bool _showUsersLink = false;
+    private bool _showAllocationsLink = false;
+    private bool _showMyAllocationsLink = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var state = await AuthStateProvider.GetAuthenticationStateAsync();
+            var user = state.User;
+            var isGlobal = user?.FindFirst(c => c.Type == "IsGlobalAdmin")?.Value == "True";
+            var role = user?.FindFirst(c => c.Type == "Role")?.Value;
+            var currentUserId = 0;
+            int.TryParse(user?.FindFirst(c => c.Type == "UserId")?.Value, out currentUserId);
+
+            _showMyAllocationsLink = role == "Registrar" || role == "Consultant";
+
+            if (isGlobal)
+            {
+                _showRotasLink = true;
+                _showUsersLink = true;
+                _showAllocationsLink = true;
+            }
+            else if (currentUserId > 0)
+            {
+                // check rota admin membership
+                var rotas = RotaService.GetAll();
+                var isRotaAdmin = rotas.Any(r => r.RotaAdmins.Any(ra => ra.UserId == currentUserId));
+                _showAllocationsLink = isRotaAdmin;
+            }
+        }
+        catch
+        {
+            // ignore
+        }
+    }
 
     private async Task Logout()
     {

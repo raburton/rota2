@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using Rota2.Data;
 using Rota2.Models;
 
@@ -7,9 +8,11 @@ namespace Rota2.Services
     public class RotaService : IRotaService
     {
         private readonly AppDbContext _db;
-        public RotaService(AppDbContext db)
+        private readonly IMemoryCache _cache;
+        public RotaService(AppDbContext db, IMemoryCache cache)
         {
             _db = db;
+            _cache = cache;
         }
 
         public IEnumerable<Rota> GetAll()
@@ -301,6 +304,12 @@ namespace Rota2.Services
                 _db.RotaAdmins.Add(new RotaAdmin { RotaId = rota.Id, UserId = a });
             }
             _db.SaveChanges();
+            // invalidate rota-admin cache entries for added admins
+            try
+            {
+                foreach (var a in adminIds.Distinct()) _cache?.Remove($"rotaadmin:{a}");
+            }
+            catch { }
             return rota;
         }
 
@@ -338,10 +347,17 @@ namespace Rota2.Services
 
         public void Delete(int id)
         {
+            // collect affected admin ids to invalidate cache
+            var adminIds = _db.RotaAdmins.Where(ra => ra.RotaId == id).Select(ra => ra.UserId).ToList();
             var existing = _db.Rotas.Find(id);
             if (existing == null) return;
             _db.Rotas.Remove(existing);
             _db.SaveChanges();
+            try
+            {
+                foreach (var uid in adminIds) _cache?.Remove($"rotaadmin:{uid}");
+            }
+            catch { }
         }
 
         public Rota DuplicateRota(int sourceRotaId, string newName)
@@ -359,6 +375,17 @@ namespace Rota2.Services
             _db.Rotas.Add(copy);
             _db.SaveChanges();
             return copy;
+        }
+
+        public bool IsRotaAdmin(int userId)
+        {
+            if (userId <= 0) return false;
+            var key = $"rotaadmin:{userId}";
+            return _cache.GetOrCreate(key, entry =>
+            {
+                entry.AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5);
+                return _db.RotaAdmins.Any(ra => ra.UserId == userId);
+            });
         }
     }
 }

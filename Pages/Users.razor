@@ -72,8 +72,26 @@ else
                 <td>@u.Email</td>
                 <td>@u.Role</td>
                 <td>@u.Wte</td>
-                <td>@(u.Active ? "Yes" : "No")</td>
-                <td>@(u.IsGlobalAdmin ? "Yes" : "No")</td>
+                <td>
+                    @if (u.Active)
+                    {
+                        <i class="bi bi-check-lg text-success" title="Active"></i>
+                    }
+                    else
+                    {
+                        <i class="bi bi-x-lg text-danger" title="Inactive"></i>
+                    }
+                </td>
+                <td>
+                    @if (u.IsGlobalAdmin)
+                    {
+                        <i class="bi bi-shield-lock-fill text-primary" title="Global admin"></i>
+                    }
+                    else
+                    {
+                        <i class="bi bi-shield text-muted" title="Not admin"></i>
+                    }
+                </td>
                 <td>
                     <ActionButton Icon="bi-pencil-square" Text="Edit" Variant="btn-outline-primary" Size="btn-sm" Href="@($"/admin/user/{u.Id}")" />
                     <button class="btn btn-sm btn-outline-secondary ms-2" @onclick="() => ToggleActive(u.Id)">@(u.Active ? "Deactivate" : "Reactivate")</button>

@@ -16,6 +16,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IUserService, UserService>();
 // provide access to HttpContext for auth provider to read cookies on full refresh
 builder.Services.AddHttpContextAccessor();
+// add in-memory caching used for rota admin checks
+builder.Services.AddMemoryCache();
 // Register HttpClient for server-side components via IHttpClientFactory
 builder.Services.AddHttpClient();
 builder.Services.AddScoped(sp => sp.GetRequiredService<IHttpClientFactory>().CreateClient());

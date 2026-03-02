@@ -59,6 +59,7 @@
     {
         _userId = userId;
         await Load();
+        await InvokeAsync(StateHasChanged);
         if (_modal != null) await _modal.ShowAsync();
     }
 
