@@ -72,6 +72,11 @@ else
 
     <DoctorPicker @ref="_doctorPicker" />
 
+    <BootstrapModal @ref="_confirmOverwriteModal" Title="Overwrite assignments?" ConfirmText="Continue" CancelText="Cancel" ShowCancel="true" OnConfirm="ConfirmOverwrite">
+        <p>Existing assignments were found for the selected rota and date range. Creating new assignments will override them. Do you want to continue?</p>
+        <p class="text-muted">Rota: @(_rotas?.FirstOrDefault(r => r.Id == _pendingRotaId)?.Name ?? "(unknown)")<br />From: @_pendingStart.ToString("yyyy-MM-dd") To: @_pendingEnd.ToString("yyyy-MM-dd")</p>
+    </BootstrapModal>
+
     <!-- Separate view: show allocations for selected rota/date range (defaults to current month, no rota selected) -->
     <div class="card mt-4 p-3">
         <h5>Show allocations</h5>
@@ -179,6 +184,10 @@ else
     private Shared.DoctorPicker? _doctorPicker;
     private int _editingAssignmentId = 0;
     private bool _editingIsView = false;
+    private Shared.BootstrapModal? _confirmOverwriteModal;
+    private int _pendingRotaId = 0;
+    private DateTime _pendingStart;
+    private DateTime _pendingEnd;
 
     protected override async Task OnInitializedAsync()
     {
@@ -196,12 +205,38 @@ else
         var start = _startDate.Date;
         var end = _endDate.Date;
         if (end < start) return;
+        // check for existing assignments in range
+        var existing = RotaService.GetAssignments(_selectedRotaId, start, end);
+        if (existing != null && existing.Any())
+        {
+            // prompt user for confirmation since this will override existing assignments
+            _pendingRotaId = _selectedRotaId;
+            _pendingStart = start;
+            _pendingEnd = end;
+            _ = InvokeAsync(async () => { if (_confirmOverwriteModal != null) await _confirmOverwriteModal.ShowAsync(); });
+            return;
+        }
+
+        // no existing assignments - create directly
         RotaService.CreateAssignments(_selectedRotaId, start, end);
         // after creating, set view filters to the newly created range and rota
         _viewRotaId = _selectedRotaId;
         _viewStartDate = start;
         _viewEndDate = end;
         LoadViewAssignments();
+    }
+
+    private async Task ConfirmOverwrite()
+    {
+        // perform creation using pending values
+        if (_pendingRotaId == 0) return;
+        RotaService.CreateAssignments(_pendingRotaId, _pendingStart, _pendingEnd);
+        // update view filters
+        _viewRotaId = _pendingRotaId;
+        _viewStartDate = _pendingStart;
+        _viewEndDate = _pendingEnd;
+        LoadViewAssignments();
+        if (_confirmOverwriteModal != null) await _confirmOverwriteModal.HideAsync();
     }
 
     private void LoadAssignments()
