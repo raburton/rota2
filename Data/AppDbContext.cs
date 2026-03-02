@@ -15,6 +15,7 @@ namespace Rota2.Data
         public DbSet<RotaDoctor> RotaDoctors { get; set; }
         public DbSet<RotaAdmin> RotaAdmins { get; set; }
         public DbSet<ShiftAssignment> ShiftAssignments { get; set; }
+        public DbSet<LeaveRequest> LeaveRequests { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

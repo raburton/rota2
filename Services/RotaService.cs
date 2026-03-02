@@ -47,6 +47,18 @@ namespace Rota2.Services
                 .ToList();
         }
 
+        public IEnumerable<Rota2.Models.ShiftAssignment> GetAssignmentsForUser(int userId, DateTime start, DateTime end)
+        {
+            return _db.ShiftAssignments
+                .AsNoTracking()
+                .Include(sa => sa.User)
+                .Include(sa => sa.Shift)
+                .Include(sa => sa.Rota)
+                .Where(sa => sa.UserId == userId && sa.Date >= start.Date && sa.Date <= end.Date)
+                .OrderBy(sa => sa.Date).ThenBy(sa => sa.ShiftId)
+                .ToList();
+        }
+
         public void CreateAssignments(int rotaId, DateTime start, DateTime end)
         {
             var rota = GetById(rotaId);
@@ -124,6 +136,11 @@ namespace Rota2.Services
                     totalWte = docList.Sum(d => d.Wte);
                 }
 
+                // load leave requests for doctors in the window to determine availability
+                var leaveList = _db.LeaveRequests
+                    .Where(l => docs.Select(d => d.UserId).Contains(l.UserId) && l.EndDate >= start.Date && l.StartDate <= end.Date)
+                    .ToList();
+
                 for (var si = 0; si < slots.Count; si++)
                 {
                     var slot = slots[si];
@@ -134,6 +151,18 @@ namespace Rota2.Services
                     {
                         var d = docList[di];
                         if (d.Wte <= 0) continue; // skip zero weight
+                        // determine availability: skip if doctor has leave covering this slot date
+                        var userId = d.UserId;
+                        var onLeave = leaveList.Any(l => l.UserId == userId && l.StartDate.Date <= slot.date.Date && l.EndDate.Date >= slot.date.Date);
+                        // if shift runs overnight (End <= Start) then also disallow the day before a leave starting the next day
+                        var runsOvernight = slot.shift.End <= slot.shift.Start;
+                        if (!onLeave && runsOvernight)
+                        {
+                            var dayBefore = slot.date.Date.AddDays(1);
+                            // if there is a leave starting on the following day, mark as unavailable
+                            onLeave = leaveList.Any(l => l.UserId == userId && l.StartDate.Date == dayBefore);
+                        }
+                        if (onLeave) continue;
                         var ratio = (double)d.Assigned / d.Wte;
                         if (ratio < bestRatio - 1e-9)
                         {
@@ -150,10 +179,17 @@ namespace Rota2.Services
                         }
                     }
 
-                    // if no suitable doctor found (all Wte zero), fallback to round-robin
+                    // if no suitable doctor found (all unavailable/zero weight), leave slot unallocated
                     if (bestIdx == -1)
                     {
-                        bestIdx = si % docList.Count;
+                        _db.ShiftAssignments.Add(new Rota2.Models.ShiftAssignment
+                        {
+                            RotaId = rotaId,
+                            ShiftId = slot.shift.Id,
+                            Date = slot.date,
+                            UserId = null
+                        });
+                        continue;
                     }
 
                     var chosen = docList[bestIdx];

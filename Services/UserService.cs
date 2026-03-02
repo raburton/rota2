@@ -59,5 +59,35 @@ namespace Rota2.Services
             existing.IsGlobalAdmin = user.IsGlobalAdmin;
             _db.SaveChanges();
         }
+
+        public IEnumerable<Rota2.Models.LeaveRequest> GetLeavesForUser(int userId)
+        {
+            return _db.LeaveRequests.AsNoTracking().Where(l => l.UserId == userId).OrderByDescending(l => l.StartDate).ToList();
+        }
+
+        public Rota2.Models.LeaveRequest CreateLeave(Rota2.Models.LeaveRequest leave)
+        {
+            _db.LeaveRequests.Add(leave);
+            _db.SaveChanges();
+            return leave;
+        }
+
+        public void UpdateLeave(Rota2.Models.LeaveRequest leave)
+        {
+            var existing = _db.LeaveRequests.Find(leave.Id);
+            if (existing == null) return;
+            existing.StartDate = leave.StartDate;
+            existing.EndDate = leave.EndDate;
+            existing.Notes = leave.Notes;
+            _db.SaveChanges();
+        }
+
+        public void DeleteLeave(int id)
+        {
+            var existing = _db.LeaveRequests.Find(id);
+            if (existing == null) return;
+            _db.LeaveRequests.Remove(existing);
+            _db.SaveChanges();
+        }
     }
 }

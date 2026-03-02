@@ -127,6 +127,37 @@ else
                 }
                 </tbody>
             </table>
+
+            @* Analysis section: per-doctor WTE, assigned count, and target for the selected rota/time period *@
+            <div class="card mt-3">
+                <div class="card-body">
+                    <h5>Allocation analysis</h5>
+                    @if (_analysis == null)
+                    {
+                        <p class="text-muted">No analysis available.</p>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm">
+                                <thead><tr><th>Doctor</th><th>WTE</th><th>Allocated</th><th>Target</th><th>Diff</th></tr></thead>
+                                <tbody>
+                                @foreach(var r in _analysis)
+                                {
+                                    <tr>
+                                        <td>@r.Name</td>
+                                        <td>@(double.IsNaN(r.Wte) ? string.Empty : r.Wte.ToString("0.##"))</td>
+                                        <td>@r.Assigned</td>
+                                        <td>@r.Target.ToString("0.##")</td>
+                                        <td>@((r.Assigned - r.Target).ToString("0.##"))</td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
         }
     </div>
 }
@@ -144,6 +175,7 @@ else
     private DateTime _viewStartDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
     private DateTime _viewEndDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1).AddMonths(1).AddDays(-1);
     private IEnumerable<Rota2.Models.ShiftAssignment>? _viewAssignments;
+    private List<AnalysisRow>? _analysis;
     private Shared.DoctorPicker? _doctorPicker;
     private int _editingAssignmentId = 0;
     private bool _editingIsView = false;
@@ -186,7 +218,50 @@ else
         var start = _viewStartDate.Date;
         var end = _viewEndDate.Date;
         _viewAssignments = RotaService.GetAssignments(_viewRotaId, start, end);
+        ComputeAnalysis(_viewRotaId, start, end);
     }
+
+    private void ComputeAnalysis(int rotaId, DateTime start, DateTime end)
+    {
+        _analysis = new List<AnalysisRow>();
+        var rota = RotaService.GetById(rotaId);
+        if (rota == null) return;
+        // determine actual number of shift slots that exist in the database for this rota and period
+        // prefer using the view assignments (these represent slots that were created/allocated)
+        var slots = (_viewAssignments ?? Enumerable.Empty<Rota2.Models.ShiftAssignment>()).Count();
+        // fallback: if there are no assignments in the DB for this range, fall back to counting theoretical slots
+        if (slots == 0)
+        {
+            for (var d = start.Date; d <= end.Date; d = d.AddDays(1))
+            {
+                foreach (var s in rota.Shifts)
+                {
+                    if (s.Day == d.DayOfWeek) slots++;
+                }
+            }
+        }
+
+        // only consider active doctors for targets
+        var doctors = rota.RotaDoctors.Select(rd => rd.User).Where(u => u != null && u.Active).ToList();
+        var totalWte = doctors.Sum(d => (double)(d?.Wte ?? 1.0m));
+
+        // count assigned per doctor in view assignments (separating unallocated/null keys)
+        var assignmentsList = (_viewAssignments ?? Enumerable.Empty<Rota2.Models.ShiftAssignment>()).ToList();
+        var unallocated = assignmentsList.Count(a => a.UserId == null);
+        var counts = assignmentsList.Where(a => a.UserId != null).GroupBy(a => a.UserId!.Value).ToDictionary(g => g.Key, g => g.Count());
+        _analysis.Add(new AnalysisRow { UserId = 0, Name = "(Unallocated)", Wte = double.NaN, Assigned = unallocated, Target = 0.0 });
+
+        foreach (var doc in doctors)
+        {
+            var uid = doc!.Id;
+            var wte = (double)doc.Wte;
+            var assigned = counts.ContainsKey(uid) ? counts[uid] : 0;
+            var target = totalWte > 0 ? slots * (wte / totalWte) : 0.0;
+            _analysis.Add(new AnalysisRow { UserId = uid, Name = doc.Name, Wte = wte, Assigned = assigned, Target = target });
+        }
+    }
+
+    private class AnalysisRow { public int UserId { get; set; } public string Name { get; set; } = string.Empty; public double Wte { get; set; } public int Assigned { get; set; } public double Target { get; set; } }
 
     private void Refresh() => LoadAssignments();
 

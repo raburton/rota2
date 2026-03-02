@@ -1,0 +1,50 @@
+@page "/myallocations"
+@using Rota2.Models
+@inject IRotaService RotaService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<h3>My Allocations</h3>
+
+@if (_assignments == null)
+{
+    <p>Loading...</p>
+}
+else if (!_assignments.Any())
+{
+    <div class="text-muted">No allocations for the selected period.</div>
+}
+else
+{
+    <div class="table-responsive">
+        <table class="table table-sm">
+            <thead><tr><th>Date</th><th>Shift</th><th>Time</th><th>Rota</th></tr></thead>
+            <tbody>
+                @foreach(var a in _assignments)
+                {
+                    <tr>
+                        <td>@a.Date.ToString("yyyy-MM-dd")</td>
+                        <td>@a.Shift?.Day</td>
+                        <td>@a.Shift?.Start.ToString("hh\\:mm") - @a.Shift?.End.ToString("hh\\:mm")</td>
+                        <td>@a.Rota?.Name</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+@code {
+    private IEnumerable<Rota2.Models.ShiftAssignment>? _assignments;
+    private int _userId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+        if (int.TryParse(user?.FindFirst(c => c.Type == "UserId")?.Value, out var uid)) _userId = uid;
+        var start = DateTime.Today.AddDays(-7);
+        var end = DateTime.Today.AddDays(30);
+        // get assignments for all rotas in period then filter by user
+        _assignments = RotaService.GetAssignmentsForUser(_userId, start, end);
+    }
+}

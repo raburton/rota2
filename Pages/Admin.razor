@@ -1,17 +1,16 @@
-@page "/admin"
-@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@page "/dashboard"
 @inject IUserService UserService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Nav
 @inject IRotaService RotaService
 
-<h3>Admin Dashboard</h3>
+<h3>Dashboard</h3>
 
-<p>This is a minimal admin dashboard. Only global admins should see/manage resources.</p>
+<p>This is the application dashboard. Admin controls are shown below for global admins.</p>
 
 @if (!_isGlobalAdmin)
 {
-    <div class="alert alert-danger">You are not authorized to manage this area.</div>
+    <div class="alert alert-info">Welcome to your dashboard. Contact an administrator for additional access.</div>
 }
 else
 {
@@ -24,20 +23,52 @@ else
     </div>
 }
 
+@* Doctor panel for registrars/consultants *@
+@if (_isDoctorRole)
+{
+    <div class="card mt-3">
+        <div class="card-body">
+            <h5>Doctors</h5>
+            <p class="mb-2">Doctor tools for registrars and consultants.</p>
+            <div class="d-flex">
+                <ActionButton Icon="bi-calendar-check" Text="My Allocations" Variant="btn-outline-primary" Href="/myallocations" />
+                <ActionButton Icon="bi-calendar-x" Text="Manage Leave" Variant="btn-outline-secondary ms-2" OnClick="@OpenLeaveManager" />
+            </div>
+        </div>
+    </div>
+}
+
+<LeaveManager @ref="_leaveManager" />
+
 @code {
     private bool _isGlobalAdmin = false;
     private int? _rotasCount = null;
     private int? _usersCount = null;
+    private Shared.LeaveManager? _leaveManager;
+    private int _currentUserId = 0;
+    private bool _isDoctorRole = false;
 
     protected override async Task OnInitializedAsync()
     {
         var state = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = state.User;
         _isGlobalAdmin = user?.FindFirst(c => c.Type == "IsGlobalAdmin")?.Value == "True";
+        var role = user?.FindFirst(c => c.Type == "Role")?.Value;
+        _isDoctorRole = role == "Registrar" || role == "Consultant";
+        if (int.TryParse(user?.FindFirst(c => c.Type == "UserId")?.Value, out var uid)) _currentUserId = uid;
         if (_isGlobalAdmin)
         {
             _rotasCount = RotaService.GetAll().Count();
             _usersCount = UserService.GetAllUsers().Count();
         }
     }
+
+    private async Task OpenLeaveManager()
+    {
+        if (_leaveManager != null)
+        {
+            await _leaveManager.ShowAsync(_currentUserId);
+        }
+    }
+
 }
