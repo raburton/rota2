@@ -1,8 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Rota2.Data;
 using Rota2.Models;
-using System.Collections.Generic;
-using System.Linq;
 
 namespace Rota2.Services
 {
@@ -125,83 +123,152 @@ namespace Rota2.Services
                     return;
                 }
 
-                // convert to mutable list of tuples: (UserId, WteDouble, AssignedCount, LastAssignedIndex)
-                var docList = docs.Select(d => (UserId: d.UserId, Wte: (double)d.Wte, Assigned: 0, LastAssigned: -100000)).ToList();
-
-                var totalWte = docList.Sum(d => d.Wte);
-                // if totalWte is zero (shouldn't happen) fall back to equal weights
-                if (totalWte <= 0)
-                {
-                    for (int i = 0; i < docList.Count; i++) docList[i] = (docList[i].UserId, 1.0, 0, -100000);
-                    totalWte = docList.Sum(d => d.Wte);
-                }
-
                 // load leave requests for doctors in the window to determine availability
                 var leaveList = _db.LeaveRequests
                     .Where(l => docs.Select(d => d.UserId).Contains(l.UserId) && l.EndDate >= start.Date && l.StartDate <= end.Date)
                     .ToList();
 
-                for (var si = 0; si < slots.Count; si++)
+                // compute availability (number of eligible slots) for each doctor
+                var totalSlots = slots.Count;
+                var availCounts = new Dictionary<int,int>();
+                foreach (var d in docs)
                 {
-                    var slot = slots[si];
-                    // choose doctor with minimal (Assigned / Wte) ratio to keep assignment proportional
-                    int bestIdx = -1;
-                    double bestRatio = double.MaxValue;
-                    for (int di = 0; di < docList.Count; di++)
+                    var uid = d.UserId;
+                    var avail = 0;
+                    for (int si = 0; si < slots.Count; si++)
                     {
-                        var d = docList[di];
-                        if (d.Wte <= 0) continue; // skip zero weight
-                        // determine availability: skip if doctor has leave covering this slot date
-                        var userId = d.UserId;
-                        var onLeave = leaveList.Any(l => l.UserId == userId && l.StartDate.Date <= slot.date.Date && l.EndDate.Date >= slot.date.Date);
-                        // if shift runs overnight (End <= Start) then also disallow the day before a leave starting the next day
+                        var slot = slots[si];
+                        var onLeave = leaveList.Any(l => l.UserId == uid && l.StartDate.Date <= slot.date.Date && l.EndDate.Date >= slot.date.Date);
                         var runsOvernight = slot.shift.End <= slot.shift.Start;
                         if (!onLeave && runsOvernight)
                         {
                             var dayBefore = slot.date.Date.AddDays(1);
-                            // if there is a leave starting on the following day, mark as unavailable
-                            onLeave = leaveList.Any(l => l.UserId == userId && l.StartDate.Date == dayBefore);
+                            onLeave = leaveList.Any(l => l.UserId == uid && l.StartDate.Date == dayBefore);
                         }
-                        if (onLeave) continue;
-                        var ratio = (double)d.Assigned / d.Wte;
-                        if (ratio < bestRatio - 1e-9)
-                        {
-                            bestRatio = ratio;
-                            bestIdx = di;
-                        }
-                        else if (Math.Abs(ratio - bestRatio) < 1e-9)
-                        {
-                            // tie-break: prefer the doctor who was assigned least recently (smaller LastAssigned)
-                            if (bestIdx == -1 || d.LastAssigned < docList[bestIdx].LastAssigned)
-                            {
-                                bestIdx = di;
-                            }
-                        }
+                        if (!onLeave) avail++;
                     }
+                    availCounts[uid] = avail;
+                }
 
-                    // if no suitable doctor found (all unavailable/zero weight), leave slot unallocated
-                    if (bestIdx == -1)
+                // compute initial fractional targets based on WTE across period
+                var totalWte = docs.Sum(d => (double)d.Wte);
+                if (totalWte <= 0) totalWte = docs.Count > 0 ? docs.Count : 1.0;
+                var fractionalTargets = docs.ToDictionary(d => d.UserId, d => (double)totalSlots * ((double)d.Wte / totalWte));
+
+                // convert fractional targets (based on full-period WTE) into integer targets using largest remainders
+                var floorTargets = fractionalTargets.ToDictionary(kv => kv.Key, kv => (int)Math.Floor(kv.Value));
+                var remainders = fractionalTargets.ToDictionary(kv => kv.Key, kv => kv.Value - Math.Floor(kv.Value));
+                var sumFloors = floorTargets.Values.Sum();
+                var toAssign = totalSlots - sumFloors;
+                var orderedByRemainder = remainders.OrderByDescending(kv => kv.Value).ThenBy(kv => kv.Key).Select(kv => kv.Key).ToList();
+                var intTargets = new Dictionary<int,int>(floorTargets);
+                foreach (var id in orderedByRemainder)
+                {
+                    if (toAssign <= 0) break;
+                    intTargets[id] = intTargets.GetValueOrDefault(id, 0) + 1;
+                    toAssign--;
+                }
+
+                // mutable tracking for assigned counts and last assigned index
+                var docList = docs.Select(d => (UserId: d.UserId, Wte: (double)d.Wte, Assigned: 0, LastAssigned: -100000)).ToList();
+
+                // New assignment strategy:
+                // - For each doctor compute the list of available slot indices (not on leave / not excluded by overnight rule)
+                // - Use integer targets computed above (intTargets)
+                // - Assign for each doctor up to min(target, availableSlots) positions spaced roughly evenly across their available slots
+                // - Resolve conflicts by picking the nearest unassigned available slot when a desired slot is already taken
+                var assignments = new int?[slots.Count]; // null = unassigned
+
+                // build availability indices per doctor
+                var availIndices = docs.ToDictionary(d => d.UserId, d => new List<int>());
+                for (int si = 0; si < slots.Count; si++)
+                {
+                    var slot = slots[si];
+                    foreach (var d in docs)
                     {
-                        _db.ShiftAssignments.Add(new Rota2.Models.ShiftAssignment
+                        var uid = d.UserId;
+                        var onLeave = leaveList.Any(l => l.UserId == uid && l.StartDate.Date <= slot.date.Date && l.EndDate.Date >= slot.date.Date);
+                        var runsOvernight = slot.shift.End <= slot.shift.Start;
+                        if (!onLeave && runsOvernight)
                         {
-                            RotaId = rotaId,
-                            ShiftId = slot.shift.Id,
-                            Date = slot.date,
-                            UserId = null
-                        });
-                        continue;
+                            var dayBefore = slot.date.Date.AddDays(1);
+                            onLeave = leaveList.Any(l => l.UserId == uid && l.StartDate.Date == dayBefore);
+                        }
+                        if (!onLeave)
+                        {
+                            availIndices[uid].Add(si);
+                        }
                     }
+                }
 
-                    var chosen = docList[bestIdx];
-                    // update assignment counts
-                    docList[bestIdx] = (chosen.UserId, chosen.Wte, chosen.Assigned + 1, si);
+                // Order doctors for placement: prioritize those with highest target/availability ratio (those needing densest packing)
+                var doctorOrder = docs.Select(d => d.UserId)
+                    .OrderByDescending(uid => (double)intTargets.GetValueOrDefault(uid, 0) / Math.Max(1, (availIndices.GetValueOrDefault(uid)?.Count) ?? 0))
+                    .ThenBy(uid => uid)
+                    .ToList();
 
+                foreach (var uid in doctorOrder)
+                {
+                    var target = intTargets.GetValueOrDefault(uid, 0);
+                    var available = availIndices.GetValueOrDefault(uid);
+                    if (available == null || available.Count == 0 || target <= 0) continue;
+
+                    var assignCount = Math.Min(target, available.Count);
+                    // spacing step over available indices
+                    var step = (double)available.Count / assignCount;
+                    for (int k = 0; k < assignCount; k++)
+                    {
+                        var desiredPos = (int)Math.Round((k + 0.5) * step - 0.5);
+                        if (desiredPos < 0) desiredPos = 0;
+                        if (desiredPos >= available.Count) desiredPos = available.Count - 1;
+                        // map to slot index
+                        var slotIndex = available[desiredPos];
+                        // if already assigned, search nearest available spot in this doctor's available list
+                        if (assignments[slotIndex].HasValue)
+                        {
+                            int found = -1;
+                            int radius = 1;
+                            while (found == -1)
+                            {
+                                var left = desiredPos - radius;
+                                var right = desiredPos + radius;
+                                bool any = false;
+                                if (left >= 0)
+                                {
+                                    any = true;
+                                    var sidx = available[left];
+                                    if (!assignments[sidx].HasValue) { found = sidx; break; }
+                                }
+                                if (right < available.Count)
+                                {
+                                    any = true;
+                                    var sidx = available[right];
+                                    if (!assignments[sidx].HasValue) { found = sidx; break; }
+                                }
+                                if (!any) break;
+                                radius++;
+                            }
+                            if (found == -1) continue; // cannot place this doctor's k-th slot
+                            slotIndex = found;
+                        }
+
+                        // assign slotIndex to uid
+                        assignments[slotIndex] = uid;
+                        var di = docList.FindIndex(d => d.UserId == uid);
+                        var chosen = docList[di];
+                        docList[di] = (chosen.UserId, chosen.Wte, chosen.Assigned + 1, slotIndex);
+                    }
+                }
+
+                // write assignments to DB (leave any remaining unassigned slots as null)
+                for (int si = 0; si < slots.Count; si++)
+                {
                     _db.ShiftAssignments.Add(new Rota2.Models.ShiftAssignment
                     {
                         RotaId = rotaId,
-                        ShiftId = slot.shift.Id,
-                        Date = slot.date,
-                        UserId = chosen.UserId
+                        ShiftId = slots[si].shift.Id,
+                        Date = slots[si].date,
+                        UserId = assignments[si]
                     });
                 }
             }
