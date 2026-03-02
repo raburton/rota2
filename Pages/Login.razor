@@ -2,6 +2,8 @@
 @inject IUserService UserService
 @inject NavigationManager Nav
 @inject CustomAuthStateProvider AuthState
+@inject HttpClient Http
+@inject IJSRuntime JS
 
 <div class="row justify-content-center">
     <div class="col-md-6">
@@ -36,17 +38,26 @@
     private LoginModel _model = new LoginModel();
     private string _error = string.Empty;
 
-    private void HandleLogin()
+    private async Task HandleLogin()
     {
-        var user = UserService.Authenticate(_model.Email, _model.Password);
-        if (user == null)
+        var payload = new { Email = _model.Email, Password = _model.Password };
+        var loginUri = new Uri(new Uri(Nav.BaseUri), "account/login");
+        var resp = await Http.PostAsJsonAsync(loginUri, payload);
+        if (!resp.IsSuccessStatusCode)
         {
             _error = "Invalid credentials";
             return;
         }
-        AuthState.MarkUserAsAuthenticated(user);
+        // server issued signed auth cookie; update auth state for current circuit
+        var user = await resp.Content.ReadFromJsonAsync<UserInfo>();
+        if (user != null)
+        {
+            AuthState.MarkUserAsAuthenticated(new Rota2.Models.User { Id = user.Id, Name = user.Name, Email = user.Email, IsGlobalAdmin = user.IsGlobalAdmin, Role = Enum.Parse<Rota2.Models.UserRole>(user.Role) });
+        }
         Nav.NavigateTo("/");
     }
+
+    private class UserInfo { public int Id { get; set; } public string Name { get; set; } = string.Empty; public string Email { get; set; } = string.Empty; public bool IsGlobalAdmin { get; set; } public string Role { get; set; } = string.Empty; }
 
     private class LoginModel
     {

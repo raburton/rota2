@@ -1,6 +1,7 @@
 @inherits LayoutComponentBase
 @inject Rota2.Services.CustomAuthStateProvider AuthStateProvider
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
     <div class="container-fluid">
@@ -44,8 +45,16 @@
 </div>
 
 @code {
+    [Inject] private HttpClient Http { get; set; } = default!;
+
     private async Task Logout()
     {
+        try
+        {
+            var logoutUri = new Uri(new Uri(Nav.BaseUri), "account/logout");
+            await Http.PostAsync(logoutUri, null);
+        }
+        catch { }
         AuthStateProvider.MarkUserAsLoggedOut();
         await Task.Yield();
         Nav.NavigateTo("/login");
