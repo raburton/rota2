@@ -2,8 +2,34 @@
 @using Rota2.Models
 @inject IRotaService RotaService
 @inject AuthenticationStateProvider AuthStateProvider
+@inject IJSRuntime JS
 
 <h3>My Allocations</h3>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">Start date</label>
+                <InputDate class="form-control" @bind-Value="_startDate" />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">End date (optional)</label>
+                <InputDate class="form-control" @bind-Value="_endDate" />
+            </div>
+            <div class="col-md-3">
+                <button class="btn btn-primary" @onclick="Load">Load</button>
+            </div>
+            <div class="col-md-3 text-end">
+                <div class="btn-group">
+                    <button class="btn btn-outline-secondary" @onclick="ExportText">Export text</button>
+                    <button class="btn btn-outline-secondary" @onclick="ExportIcsTimed">Export ICS (timed)</button>
+                    <button class="btn btn-outline-secondary" @onclick="ExportIcsAllDay">Export ICS (all-day)</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 @if (_assignments == null)
 {
@@ -36,15 +62,117 @@ else
 @code {
     private IEnumerable<Rota2.Models.ShiftAssignment>? _assignments;
     private int _userId = 0;
+    private DateTime _startDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+    private DateTime? _endDate = null;
 
     protected override async Task OnInitializedAsync()
     {
         var state = await AuthStateProvider.GetAuthenticationStateAsync();
         var user = state.User;
         if (int.TryParse(user?.FindFirst(c => c.Type == "UserId")?.Value, out var uid)) _userId = uid;
-        var start = DateTime.Today.AddDays(-7);
-        var end = DateTime.Today.AddDays(30);
-        // get assignments for all rotas in period then filter by user
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        DateTime start = _startDate.Date;
+        DateTime end = _endDate?.Date ?? DateTime.MaxValue;
         _assignments = RotaService.GetAssignmentsForUser(_userId, start, end);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private string BuildPlainText()
+    {
+        var sb = new System.Text.StringBuilder();
+        foreach (var a in _assignments ?? Enumerable.Empty<Rota2.Models.ShiftAssignment>())
+        {
+            var date = a.Date.ToString("yyyy-MM-dd");
+            var start = a.Shift?.Start.ToString("hh\\:mm") ?? "";
+            var end = a.Shift?.End.ToString("hh\\:mm") ?? "";
+            var rota = a.Rota?.Name ?? string.Empty;
+            sb.AppendLine($"{date} {a.Shift?.Day} {start}-{end} {rota}");
+        }
+        return sb.ToString();
+    }
+
+    private async Task ExportText()
+    {
+        var content = BuildPlainText();
+        await JS.InvokeVoidAsync("downloadTextFile", $"allocations_{DateTime.Today:yyyyMMdd}.txt", content, "text/plain");
+    }
+
+    private string BuildIcs(bool allDay)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("BEGIN:VCALENDAR");
+        sb.AppendLine("VERSION:2.0");
+        sb.AppendLine("PRODID:-//Rota2//EN");
+
+        var exportTime = DateTime.UtcNow;
+        var exportStamp = exportTime.ToString("yyyyMMddTHHmmssZ");
+
+        foreach (var a in _assignments ?? Enumerable.Empty<Rota2.Models.ShiftAssignment>())
+        {
+            if (a.Shift == null) continue;
+            var startLocal = a.Date.Date + a.Shift.Start;
+            var endLocal = a.Date.Date + a.Shift.End;
+            if (a.Shift.End <= a.Shift.Start) endLocal = endLocal.AddDays(1);
+
+            // deterministic UID based on stable assignment fields
+            var key = $"{a.Rota?.Id}:{a.Shift.Id}:{a.Date:yyyy-MM-dd}:{a.UserId}";
+            var uid = ComputeDeterministicUid(key) + "@rota.rab";
+
+            if (allDay)
+            {
+                sb.AppendLine("BEGIN:VEVENT");
+                sb.AppendLine($"UID:{uid}");
+                sb.AppendLine($"DTSTAMP:{exportStamp}");
+                sb.AppendLine($"LAST-MODIFIED:{exportStamp}");
+                sb.AppendLine($"DTSTART;VALUE=DATE:{startLocal:yyyyMMdd}");
+                sb.AppendLine($"DTEND;VALUE=DATE:{endLocal:yyyyMMdd}");
+                sb.AppendLine($"SUMMARY:{a.Rota?.Name}");
+                sb.AppendLine("END:VEVENT");
+            }
+            else
+            {
+                var startUtc = DateTime.SpecifyKind(startLocal, DateTimeKind.Local).ToUniversalTime();
+                var endUtc = DateTime.SpecifyKind(endLocal, DateTimeKind.Local).ToUniversalTime();
+                sb.AppendLine("BEGIN:VEVENT");
+                sb.AppendLine($"UID:{uid}");
+                sb.AppendLine($"DTSTAMP:{exportStamp}");
+                sb.AppendLine($"LAST-MODIFIED:{exportStamp}");
+                sb.AppendLine($"DTSTART:{startUtc:yyyyMMddTHHmmssZ}");
+                sb.AppendLine($"DTEND:{endUtc:yyyyMMddTHHmmssZ}");
+                sb.AppendLine($"SUMMARY:{a.Rota?.Name}");
+                sb.AppendLine($"DESCRIPTION:Shift {a.Shift.Day} {a.Shift.Start:hh\\:mm}-{a.Shift.End:hh\\:mm}");
+                sb.AppendLine("END:VEVENT");
+            }
+        }
+        sb.AppendLine("END:VCALENDAR");
+        return sb.ToString();
+    }
+
+    private static string ComputeDeterministicUid(string input)
+    {
+        if (string.IsNullOrEmpty(input)) input = "";
+        using var sha1 = System.Security.Cryptography.SHA1.Create();
+        var bytes = System.Text.Encoding.UTF8.GetBytes(input);
+        var hash = sha1.ComputeHash(bytes);
+        // use first 16 bytes to keep UID shorter but still stable
+        var shortHash = new byte[16];
+        Array.Copy(hash, 0, shortHash, 0, 16);
+        return BitConverter.ToString(shortHash).Replace("-", "").ToLowerInvariant();
+    }
+
+    private async Task ExportIcsTimed()
+    {
+        var ics = BuildIcs(false);
+        await JS.InvokeVoidAsync("downloadTextFile", $"allocations_{DateTime.Today:yyyyMMdd}.ics", ics, "text/calendar");
+    }
+
+    private async Task ExportIcsAllDay()
+    {
+        var ics = BuildIcs(true);
+        await JS.InvokeVoidAsync("downloadTextFile", $"allocations_{DateTime.Today:yyyyMMdd}_allday.ics", ics, "text/calendar");
     }
 }

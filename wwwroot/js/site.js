@@ -71,3 +71,29 @@ window.postEmptyWithCredentials = async (url) => {
     });
     return { ok: res.ok, status: res.status };
 };
+
+window.downloadTextFile = (filename, content, mime) => {
+    mime = mime || 'text/plain';
+    const blob = new Blob([content], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+};
+
+window.copyTextToClipboard = async (text) => {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(text);
+    }
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand('copy'); } catch (e) { }
+    ta.remove();
+};
