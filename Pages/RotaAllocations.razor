@@ -100,8 +100,8 @@ else
                 <label class="form-label">End date</label>
                 <InputDate class="form-control" @bind-Value="_viewEndDate" />
             </div>
-            <div class="col-md-2 d-flex align-items-end">
-                <button class="btn btn-primary" @onclick="LoadViewAssignments">Show</button>
+                <div class="col-md-2 d-flex align-items-end">
+                <button class="btn btn-primary" @onclick="LoadViewAssignments"><i class="bi bi-eye me-1"></i>Show</button>
             </div>
         </div>
 
@@ -127,7 +127,7 @@ else
                         <td>@(a.User?.Name ?? "(none)")</td>
                         <td>
                             <ActionButton Icon="bi-person-circle" Text="Allocate" Variant="btn-outline-secondary" Size="btn-sm" OnClick="@(async () => await OpenDoctorPicker(a.Id, a.UserId, true))" />
-                            <button class="btn btn-sm btn-outline-danger ms-2" @onclick="(() => ClearViewAssignment(a.Id))">Clear</button>
+                            <button class="btn btn-sm btn-outline-danger ms-2" @onclick="(() => ClearViewAssignment(a.Id))"><i class="bi bi-eraser me-1"></i>Clear</button>
                         </td>
                     </tr>
                 }

@@ -16,9 +16,9 @@
             <div class="mb-3 d-flex">
                 @if (_isGlobalAdmin)
                 {
-                    <ActionButton Icon="bi-calendar2-week" Text="@($"Manage Rotas ({_rotasCount ?? 0})")" Variant="btn-outline-secondary" Href="/rotas" />
-                    <ActionButton Icon="bi-people" Text="@($"Manage Users ({_activeUsersCount ?? 0})")" Variant="btn-outline-secondary ms-2" Href="/users" />
-                    <ActionButton Icon="bi-diagram-3" Text="Shift Allocations" Variant="btn-outline-secondary ms-2" Href="/rotas/allocations" />
+                    <ActionButton Icon="bi-calendar2-week" Text="@($"Manage Rotas ({_rotasCount ?? 0})")" Variant="btn-primary" Href="/rotas" />
+                    <ActionButton Icon="bi-people" Text="@($"Manage Users ({_activeUsersCount ?? 0})")" Variant="btn-primary ms-2" Href="/users" />
+                    <ActionButton Icon="bi-diagram-3" Text="Shift Allocations" Variant="btn-primary ms-2" Href="/rotas/allocations" />
                 }
                 else if (_isRotaAdmin)
                 {
@@ -37,7 +37,7 @@
             <h5>Doctors</h5>
             <p class="mb-2">Doctor tools for registrars and consultants.</p>
                 <div class="d-flex">
-                <ActionButton Icon="bi-calendar-check" Text="My Allocations" Variant="btn-outline-secondary" Href="/myallocations" />
+                <ActionButton Icon="bi-calendar-check" Text="My Allocations" Variant="btn-outline-primary" Href="/myallocations" />
                 <ActionButton Icon="bi-calendar-x" Text="Manage Leave" Variant="btn-outline-secondary ms-2" OnClick="@OpenLeaveManager" />
             </div>
         </div>

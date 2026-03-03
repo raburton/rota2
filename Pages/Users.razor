@@ -94,7 +94,14 @@ else
                 </td>
                 <td>
                     <ActionButton Icon="bi-pencil-square" Text="Edit" Variant="btn-outline-primary" Size="btn-sm" Href="@($"/admin/user/{u.Id}")" />
-                    <button class="btn btn-sm btn-outline-secondary ms-2" @onclick="() => ToggleActive(u.Id)">@(u.Active ? "Deactivate" : "Reactivate")</button>
+                    @if (u.Active)
+                    {
+                        <button class="btn btn-sm btn-outline-danger ms-2" @onclick="() => ToggleActive(u.Id)"><i class="bi bi-person-x me-1"></i>Deactivate</button>
+                    }
+                    else
+                    {
+                        <button class="btn btn-sm btn-outline-success ms-2" @onclick="() => ToggleActive(u.Id)"><i class="bi bi-person-check me-1"></i>Reactivate</button>
+                    }
                 </td>
             </tr>
         }
