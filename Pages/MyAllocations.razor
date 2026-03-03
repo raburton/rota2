@@ -1,10 +1,10 @@
-@page "/myallocations"
+@page "/myshifts"
 @using Rota2.Models
 @inject IRotaService RotaService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject IJSRuntime JS
 
-<h3>My Allocations</h3>
+<h3>My Shifts</h3>
 
 <div class="card mb-3">
     <div class="card-body">
@@ -98,7 +98,7 @@ else
     private async Task ExportText()
     {
         var content = BuildPlainText();
-        await JS.InvokeVoidAsync("downloadTextFile", $"allocations_{DateTime.Today:yyyyMMdd}.txt", content, "text/plain");
+        await JS.InvokeVoidAsync("downloadTextFile", $"shifts_{DateTime.Today:yyyyMMdd}.txt", content, "text/plain");
     }
 
     private string BuildIcs(bool allDay)
@@ -167,12 +167,12 @@ else
     private async Task ExportIcsTimed()
     {
         var ics = BuildIcs(false);
-        await JS.InvokeVoidAsync("downloadTextFile", $"allocations_{DateTime.Today:yyyyMMdd}.ics", ics, "text/calendar");
+        await JS.InvokeVoidAsync("downloadTextFile", $"shifts_{DateTime.Today:yyyyMMdd}.ics", ics, "text/calendar");
     }
 
     private async Task ExportIcsAllDay()
     {
         var ics = BuildIcs(true);
-        await JS.InvokeVoidAsync("downloadTextFile", $"allocations_{DateTime.Today:yyyyMMdd}_allday.ics", ics, "text/calendar");
+        await JS.InvokeVoidAsync("downloadTextFile", $"shifts_{DateTime.Today:yyyyMMdd}_allday.ics", ics, "text/calendar");
     }
 }

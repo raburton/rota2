@@ -3,6 +3,7 @@
 @inject NavigationManager Nav
 @inject IJSRuntime JS
 @inject IRotaService RotaService
+@using Rota2.Shared
 
 
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
@@ -13,7 +14,7 @@
         </button>
                 <div class="collapse navbar-collapse" id="navbarSupportedContent">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                <li class="nav-item"><NavLink class="nav-link" href="/">Home</NavLink></li>
+                <li class="nav-item"><NavLink class="nav-link" href="/dashboard">Dashboard</NavLink></li>
                 @if (_showRotasLink)
                 {
                     <li class="nav-item"><NavLink class="nav-link" href="/rotas">Rotas</NavLink></li>
@@ -24,26 +25,33 @@
                 }
                 @if (_showAllocationsLink)
                 {
-                    <li class="nav-item"><NavLink class="nav-link" href="/rotas/allocations">Allocations</NavLink></li>
+                    <li class="nav-item"><NavLink class="nav-link" href="/allocations">Allocations</NavLink></li>
                 }
                 @if (_showMyAllocationsLink)
                 {
-                    <li class="nav-item"><NavLink class="nav-link" href="/myallocations">My Allocations</NavLink></li>
+                    <li class="nav-item"><NavLink class="nav-link" href="/myshifts">My Shifts</NavLink></li>
                 }
             </ul>
             <div class="d-flex">
                 <AuthorizeView>
                     <Authorized Context="state">
-                        <span class="navbar-text me-2">Hello @state.User.Identity?.Name</span>
-                        <button class="btn btn-light btn-sm" @onclick="Logout">Sign out</button>
+                        <div class="nav-item dropdown">
+                            <a class="nav-link text-white" href="#" id="userMenu" role="button" data-bs-toggle="dropdown" aria-expanded="false">@state.User.Identity?.Name <i class="bi bi-person-circle ms-2"></i></a>
+                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userMenu">
+                                <li><button class="dropdown-item" type="button" @onclick="OpenChangePassword">Change password</button></li>
+                                <li><hr class="dropdown-divider" /></li>
+                                <li><button class="dropdown-item" type="button" @onclick="Logout">Sign out</button></li>
+                            </ul>
+                        </div>
                     </Authorized>
                     <NotAuthorized>
-                        <NavLink class="btn btn-light btn-sm" href="@($"/login?returnUrl={Uri.EscapeDataString(Nav.Uri)}")">Login</NavLink>
+                        <NavLink class="nav-link text-white" href="@($"/login?returnUrl={Uri.EscapeDataString(Nav.Uri)}")">Login</NavLink>
                     </NotAuthorized>
                 </AuthorizeView>
             </div>
         </div>
     </div>
+    <ChangePasswordModal @ref="_changePasswordModal" />
 </nav>
 
 <div class="container mt-4">
@@ -60,18 +68,50 @@
 
 @code {
     [Inject] private HttpClient Http { get; set; } = default!;
+    private ChangePasswordModal? _changePasswordModal;
 
     private bool _showRotasLink = false;
     private bool _showUsersLink = false;
     private bool _showAllocationsLink = false;
     private bool _showMyAllocationsLink = false;
 
+    private Microsoft.AspNetCore.Components.Authorization.AuthenticationStateChangedHandler? _authStateHandler;
+
     protected override async Task OnInitializedAsync()
     {
+        // initialize menu based on current auth state
         try
         {
             var state = await AuthStateProvider.GetAuthenticationStateAsync();
-            var user = state.User;
+            await UpdateMenuForUser(state.User);
+        }
+        catch { }
+
+        // subscribe to auth state changes so navbar updates when user logs in/out
+        _authStateHandler = OnAuthenticationStateChanged;
+        AuthStateProvider.AuthenticationStateChanged += _authStateHandler;
+    }
+
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> task)
+    {
+        _ = HandleAuthStateChangedAsync(task);
+    }
+
+    private async Task HandleAuthStateChangedAsync(Task<AuthenticationState> task)
+    {
+        try
+        {
+            var st = await task;
+            await UpdateMenuForUser(st.User);
+            await InvokeAsync(StateHasChanged);
+        }
+        catch { }
+    }
+
+    private Task UpdateMenuForUser(System.Security.Claims.ClaimsPrincipal user)
+    {
+        try
+        {
             var isGlobal = user?.FindFirst(c => c.Type == "IsGlobalAdmin")?.Value == "True";
             var role = user?.FindFirst(c => c.Type == "Role")?.Value;
             var currentUserId = 0;
@@ -85,17 +125,33 @@
                 _showUsersLink = true;
                 _showAllocationsLink = true;
             }
-            else if (currentUserId > 0)
+            else
             {
+                _showRotasLink = false;
+                _showUsersLink = false;
                 // check rota admin membership
-                var rotas = RotaService.GetAll();
-                var isRotaAdmin = rotas.Any(r => r.RotaAdmins.Any(ra => ra.UserId == currentUserId));
-                _showAllocationsLink = isRotaAdmin;
+                if (currentUserId > 0)
+                {
+                    var rotas = RotaService.GetAll();
+                    var isRotaAdmin = rotas.Any(r => r.RotaAdmins.Any(ra => ra.UserId == currentUserId));
+                    _showAllocationsLink = isRotaAdmin;
+                }
+                else
+                {
+                    _showAllocationsLink = false;
+                }
             }
         }
-        catch
+        catch { }
+        return Task.CompletedTask;
+    }
+
+    public void Dispose()
+    {
+        if (_authStateHandler != null)
         {
-            // ignore
+            AuthStateProvider.AuthenticationStateChanged -= _authStateHandler;
+            _authStateHandler = null;
         }
     }
 
@@ -111,5 +167,10 @@
         AuthStateProvider.MarkUserAsLoggedOut();
         await Task.Yield();
         Nav.NavigateTo("/login");
+    }
+
+    private async Task OpenChangePassword()
+    {
+        if (_changePasswordModal != null) await _changePasswordModal.ShowAsync();
     }
 }

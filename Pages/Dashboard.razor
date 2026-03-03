@@ -6,8 +6,6 @@
 
 <h3>Dashboard</h3>
 
-<p>This is the application dashboard. Admin controls are shown below for global admins.</p>
-
 @if (_isGlobalAdmin || _isRotaAdmin)
 {
     <div class="card mb-3">
@@ -18,11 +16,11 @@
                 {
                     <ActionButton Icon="bi-calendar2-week" Text="@($"Manage Rotas ({_rotasCount ?? 0})")" Variant="btn-primary" Href="/rotas" />
                     <ActionButton Icon="bi-people" Text="@($"Manage Users ({_activeUsersCount ?? 0})")" Variant="btn-primary ms-2" Href="/users" />
-                    <ActionButton Icon="bi-diagram-3" Text="Shift Allocations" Variant="btn-primary ms-2" Href="/rotas/allocations" />
+                    <ActionButton Icon="bi-diagram-3" Text="Shift Allocations" Variant="btn-primary ms-2" Href="/allocations" />
                 }
                 else if (_isRotaAdmin)
                 {
-                    <ActionButton Icon="bi-diagram-3" Text="Shift Allocations" Variant="btn-outline-secondary" Href="/rotas/allocations" />
+                    <ActionButton Icon="bi-diagram-3" Text="Shift Allocations" Variant="btn-primary" Href="/allocations" />
                 }
             </div>
         </div>
@@ -37,8 +35,8 @@
             <h5>Doctors</h5>
             <p class="mb-2">Doctor tools for registrars and consultants.</p>
                 <div class="d-flex">
-                <ActionButton Icon="bi-calendar-check" Text="My Allocations" Variant="btn-outline-primary" Href="/myallocations" />
-                <ActionButton Icon="bi-calendar-x" Text="Manage Leave" Variant="btn-outline-secondary ms-2" OnClick="@OpenLeaveManager" />
+                <ActionButton Icon="bi-calendar-check" Text="My Shifts" Variant="btn-primary" Href="/myshifts" />
+                <ActionButton Icon="bi-calendar-x" Text="Manage Leave" Variant="btn-primary ms-2" OnClick="@OpenLeaveManager" />
             </div>
         </div>
     </div>

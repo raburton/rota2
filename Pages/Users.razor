@@ -93,7 +93,7 @@ else
                     }
                 </td>
                 <td>
-                    <ActionButton Icon="bi-pencil-square" Text="Edit" Variant="btn-outline-primary" Size="btn-sm" Href="@($"/admin/user/{u.Id}")" />
+                    <ActionButton Icon="bi-pencil-square" Text="Edit" Variant="btn-outline-primary" Size="btn-sm" Href="@($"/users/edit/{u.Id}")" />
                     @if (u.Active)
                     {
                         <button class="btn btn-sm btn-outline-danger ms-2" @onclick="() => ToggleActive(u.Id)"><i class="bi bi-person-x me-1"></i>Deactivate</button>
@@ -142,7 +142,7 @@ else
 
     private void AddUser()
     {
-        Nav.NavigateTo("/admin/user");
+        Nav.NavigateTo("/users/edit");
     }
 
     private async Task ToggleActive(int id)

@@ -1,0 +1,23 @@
+/* Custom site styles */
+/* Make navbar links a light-blue color by default, active link stays white */
+.navbar-nav .nav-link {
+    color: #cfeeff; /* light blue */
+}
+.navbar-nav .nav-link:hover, .navbar-nav .nav-link:focus {
+    color: #e6f7ff;
+}
+.navbar-nav .nav-link.active {
+    color: #ffffff !important; /* active link white */
+    font-weight: 600;
+}
+
+/* Ensure user name link in top-right is always white */
+.navbar .nav-link.text-white {
+    color: #ffffff !important;
+    font-weight: 600;
+}
+
+/* Ensure dropdown items show pointer cursor */
+.dropdown-item {
+    cursor: pointer;
+}
