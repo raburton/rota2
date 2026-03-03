@@ -16,5 +16,6 @@ namespace Rota2.Services
         void CreateAssignments(int rotaId, DateTime start, DateTime end);
         void UpdateAssignment(int assignmentId, int? userId);
         IEnumerable<Rota2.Models.ShiftAssignment> GetAssignmentsForUser(int userId, DateTime start, DateTime end);
+        IEnumerable<Rota2.Models.ShiftAssignment> GetAssignmentsByIds(IEnumerable<int> ids);
     }
 }

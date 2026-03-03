@@ -3,6 +3,7 @@
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Nav
 @inject IRotaService RotaService
+@inject ISwapService SwapService
 
 <h3>Dashboard</h3>
 
@@ -36,6 +37,10 @@
             <p class="mb-2">Doctor tools for registrars and consultants.</p>
                 <div class="d-flex">
                 <ActionButton Icon="bi-calendar-check" Text="My Shifts" Variant="btn-primary" Href="/myshifts" />
+                @if (_isDoctorRole)
+                {
+                    <ActionButton Icon="bi-arrow-left-right" Text="@( _pendingSwaps>0 ? $"Swaps ({_pendingSwaps})" : "Swaps" )" Variant="btn-primary ms-2" Href="/swaps" />
+                }
                 <ActionButton Icon="bi-calendar-x" Text="Manage Leave" Variant="btn-primary ms-2" OnClick="@OpenLeaveManager" />
             </div>
         </div>
@@ -50,6 +55,7 @@
     private int? _activeUsersCount = null;
     private bool _isRotaAdmin = false;
     private Shared.LeaveManager? _leaveManager;
+    private int _pendingSwaps = 0;
     private int _currentUserId = 0;
     private bool _isDoctorRole = false;
 
@@ -75,6 +81,10 @@
             {
                 _rotasCount = rotas.Count();
             }
+        }
+        if (_isDoctorRole)
+        {
+            _pendingSwaps = SwapService.GetIncoming(_currentUserId).Count(s => s.Status == SwapStatus.Pending);
         }
     }
 

@@ -1,0 +1,334 @@
+@page "/swaps"
+@using Rota2.Models
+@inject ISwapService SwapService
+@inject IUserService UserService
+@inject IRotaService RotaService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<h3>Swaps</h3>
+
+@if (!_isDoctor)
+{
+    <div class="alert alert-danger">You are not authorized to use swaps.</div>
+}
+
+@* modal and content only shown to doctors *@
+@if (!_isDoctor)
+{
+    <div class="alert alert-danger">You are not authorized to use swaps.</div>
+}
+else
+{
+    <BootstrapModal @ref="_detailsModal" Title="Swap details" ConfirmText="Close" ShowCancel="false" OnConfirm="CloseDetails">
+        @if (_detailsRequest == null)
+        {
+            <p class="text-muted">No details available.</p>
+        }
+        else
+        {
+            <div><strong>Requester:</strong> @_usersById[_detailsRequest.FromUserId]?.Name</div>
+            <div><strong>Nominated:</strong> @_usersById[_detailsRequest.ToUserId]?.Name</div>
+            <div class="mt-2">
+                <h6>Offered assignments (from @_usersById[_detailsRequest.FromUserId]?.Name)</h6>
+                @if (!_detailsOfferedAssignments.Any()) { <div class="text-muted">None</div> }
+                else
+                {
+                    <ul>
+                    @foreach(var a in _detailsOfferedAssignments)
+                    {
+                        <li>@a.Date.ToString("yyyy-MM-dd") - @a.Rota?.Name - @a.Shift?.Day (@a.Shift?.Start.ToString("hh\\:mm") - @a.Shift?.End.ToString("hh\\:mm"))</li>
+                    }
+                    </ul>
+                }
+            </div>
+            <div class="mt-2">
+                <h6>Requested assignments (from @_usersById[_detailsRequest.ToUserId]?.Name)</h6>
+                @if (!_detailsRequestedAssignments.Any()) { <div class="text-muted">None</div> }
+                else
+                {
+                    <ul>
+                    @foreach(var a in _detailsRequestedAssignments)
+                    {
+                        <li>@a.Date.ToString("yyyy-MM-dd") - @a.Rota?.Name - @a.Shift?.Day (@a.Shift?.Start.ToString("hh\\:mm") - @a.Shift?.End.ToString("hh\\:mm"))</li>
+                    }
+                    </ul>
+                }
+            </div>
+        }
+    </BootstrapModal>
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <h5>New swap request</h5>
+            @if (_step == 1)
+            {
+                <div class="mb-2">
+                    <label class="form-label">Nominate person to swap with</label>
+                    <select class="form-select" @bind="_nominatedId">
+                        <option value="0">-- select person --</option>
+                        @foreach(var u in _people)
+                        {
+                            <option value="@u.Id">@u.Name (@u.Email)</option>
+                        }
+                    </select>
+                </div>
+                <div>
+                    <button class="btn btn-primary" @onclick="NextStep">Next</button>
+                </div>
+            }
+            else if (_step == 2)
+            {
+                <div class="mb-2">
+                    <h6>Shifts to offer (optional)</h6>
+                    <div class="text-muted">Select any of your future shifts to offer to the nominated person.</div>
+                    <div class="table-responsive mt-2">
+                        <table class="table table-sm">
+                            <thead><tr><th></th><th>Date</th><th>Shift</th><th>Time</th><th>Rota</th></tr></thead>
+                            <tbody>
+                                @foreach(var a in _myAssignments)
+                                {
+                                    <tr>
+                                        <td><input type="checkbox" @onchange="(e => ToggleSelect(_mySelected, a.Id, (e.Value as bool?)==true))" /></td>
+                                        <td>@a.Date.ToString("yyyy-MM-dd")</td>
+                                        <td>@a.Shift?.Day</td>
+                                        <td>@a.Shift?.Start.ToString("hh\\:mm") - @a.Shift?.End.ToString("hh\\:mm")</td>
+                                        <td>@a.Rota?.Name</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <button class="btn btn-secondary me-2" @onclick="PrevStep">Back</button>
+                    <button class="btn btn-primary" @onclick="NextStep">Next</button>
+                </div>
+            }
+            else if (_step == 3)
+            {
+                <div class="mb-2">
+                    <h6>Shifts to take from nominated person (optional)</h6>
+                    <div class="text-muted">Select any future shifts belonging to the nominated person that you want to take.</div>
+                    <div class="table-responsive mt-2">
+                        <table class="table table-sm">
+                            <thead><tr><th></th><th>Date</th><th>Shift</th><th>Time</th><th>Rota</th></tr></thead>
+                            <tbody>
+                                @foreach(var a in _nominatedAssignments)
+                                {
+                                    <tr>
+                                        <td><input type="checkbox" @onchange="(e => ToggleSelect(_nominatedSelected, a.Id, (e.Value as bool?)==true))" /></td>
+                                        <td>@a.Date.ToString("yyyy-MM-dd")</td>
+                                        <td>@a.Shift?.Day</td>
+                                        <td>@a.Shift?.Start.ToString("hh\\:mm") - @a.Shift?.End.ToString("hh\\:mm")</td>
+                                        <td>@a.Rota?.Name</td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="mt-2">
+                    <button class="btn btn-secondary me-2" @onclick="PrevStep">Back</button>
+                    <button class="btn btn-success" @onclick="SubmitRequest">Submit request</button>
+                </div>
+            }
+        </div>
+
+        <div class="col-md-6">
+            <h5>Incoming requests</h5>
+            @if (!_incoming.Any())
+            {
+                <div class="text-muted">No incoming swap requests.</div>
+            }
+            <div class="list-group">
+                @foreach(var s in _incoming)
+                {
+                    <div class="list-group-item">
+                            <div><strong>@_usersById[s.FromUserId]?.Name</strong> requested swap at @s.CreatedAt.ToLocalTime().ToString("g")</div>
+                            <div class="mt-2">
+                                <button class="btn btn-sm btn-outline-secondary me-2" @onclick="() => ShowDetails(s.Id)">Details</button>
+                                <button class="btn btn-sm btn-success me-2" @onclick="() => Accept(s.Id)">Accept</button>
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => Reject(s.Id)">Reject</button>
+                            </div>
+                    </div>
+                }
+            </div>
+
+            <h5 class="mt-3">Outgoing pending requests</h5>
+            @if (!_outgoingPending.Any())
+            {
+                <div class="text-muted">No outgoing pending requests.</div>
+            }
+            <div class="list-group">
+                @foreach(var s in _outgoingPending)
+                {
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <div><strong>To: @_usersById[s.ToUserId]?.Name</strong> requested at @s.CreatedAt.ToLocalTime().ToString("g")</div>
+                            <div class="text-muted">@s.RequestedAssignmentIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Length selected from nominated, @s.OfferedAssignmentIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Length offered</div>
+                        </div>
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary me-2" @onclick="() => ShowDetails(s.Id)">Details</button>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="() => CancelRequest(s.Id)">Cancel</button>
+                        </div>
+                    </div>
+                }
+            </div>
+
+            <h5 class="mt-3">History</h5>
+            @foreach(var s in _history)
+            {
+                <div class="card mb-2">
+                    <div class="card-body d-flex justify-content-between align-items-start">
+                        <div>
+                            <div><strong>@_usersById[s.FromUserId]?.Name</strong> → <strong>@_usersById[s.ToUserId]?.Name</strong></div>
+                            <div class="text-muted">@s.Status.ToString() on @(s.UpdatedAt?.ToLocalTime().ToString("g") ?? s.CreatedAt.ToLocalTime().ToString("g"))</div>
+                        </div>
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => ShowDetails(s.Id)">Details</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private bool _isDoctor = false;
+    private int _step = 1;
+    private int _nominatedId = 0;
+    private List<Rota2.Models.User> _people = new();
+    private Dictionary<int, Rota2.Models.User> _usersById = new();
+    private List<Rota2.Models.ShiftAssignment> _nominatedAssignments = new();
+    private List<Rota2.Models.ShiftAssignment> _myAssignments = new();
+    private int _loadedNominatedId = 0;
+    private HashSet<int> _nominatedSelected = new();
+    private HashSet<int> _mySelected = new();
+    private List<SwapRequest> _incoming = new();
+    private List<SwapRequest> _history = new();
+    private List<SwapRequest> _outgoingPending = new();
+    private Shared.BootstrapModal? _detailsModal;
+    private SwapRequest? _detailsRequest;
+    private List<Rota2.Models.ShiftAssignment> _detailsRequestedAssignments = new();
+    private List<Rota2.Models.ShiftAssignment> _detailsOfferedAssignments = new();
+    private int _pendingCount = 0;
+    private int _currentUserId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+        if (int.TryParse(user?.FindFirst(c => c.Type == "UserId")?.Value, out var uid)) _currentUserId = uid;
+        var role = user?.FindFirst(c => c.Type == "Role")?.Value;
+        _isDoctor = role == "Registrar" || role == "Consultant";
+        if (!_isDoctor) return;
+
+        var users = UserService.GetAllUsers().Where(u => u.Active && u.Id != _currentUserId).ToList();
+        _people = users;
+        _usersById = users.ToDictionary(u => u.Id, u => u);
+        var doctors = UserService.GetAllUsers().Where(u => u.Role == UserRole.Registrar || u.Role == UserRole.Consultant).ToList();
+        foreach(var d in doctors) if (!_usersById.ContainsKey(d.Id)) _usersById[d.Id] = d;
+
+        await LoadLists();
+    }
+
+    private async Task LoadLists()
+    {
+        var allIncoming = SwapService.GetIncoming(_currentUserId).ToList();
+        _incoming = allIncoming.Where(s => s.Status == SwapStatus.Pending).ToList();
+        var outgoing = SwapService.GetOutgoing(_currentUserId).ToList();
+        // outgoing pending (so requester can cancel)
+        _outgoingPending = outgoing.Where(s => s.Status == SwapStatus.Pending).ToList();
+        // history should show completed swaps (accepted or rejected)
+        _history = allIncoming.Concat(outgoing).Where(s => s.Status != SwapStatus.Pending).Distinct().OrderByDescending(s => s.CreatedAt).ToList();
+        _pendingCount = _incoming.Count;
+    }
+
+    private void NextStep()
+    {
+        if (_step == 1 && _nominatedId == 0) return;
+        if (_step == 1)
+        {
+            // load assignments for the nominated person and current user only when needed
+            var start = DateTime.Today;
+            var end = DateTime.Today.AddYears(1);
+            if (_loadedNominatedId != _nominatedId)
+            {
+                _nominatedAssignments = RotaService.GetAssignmentsForUser(_nominatedId, start, end).ToList();
+                _loadedNominatedId = _nominatedId;
+            }
+            if (!_myAssignments.Any())
+            {
+                _myAssignments = RotaService.GetAssignmentsForUser(_currentUserId, start, end).ToList();
+            }
+        }
+        _step++;
+    }
+
+    private void PrevStep() { if (_step>1) _step--; }
+
+    private void ToggleSelect(HashSet<int> set, int id, bool on)
+    {
+        if (on) set.Add(id); else set.Remove(id);
+    }
+
+    private async Task SubmitRequest()
+    {
+        // ensure at least one shift in total selected
+        if (!_nominatedSelected.Any() && !_mySelected.Any()) return;
+        var req = new SwapRequest
+        {
+            FromUserId = _currentUserId,
+            ToUserId = _nominatedId,
+            RequestedAssignmentIds = string.Join(',', _nominatedSelected),
+            OfferedAssignmentIds = string.Join(',', _mySelected),
+            Status = SwapStatus.Pending
+        };
+        SwapService.Create(req);
+        await LoadLists();
+        _step = 1; _nominatedId = 0; _nominatedSelected.Clear(); _mySelected.Clear();
+    }
+
+    private async Task Accept(int id)
+    {
+        var ok = SwapService.Accept(id, _currentUserId);
+        if (ok)
+        {
+            await LoadLists();
+        }
+    }
+
+    private async Task Reject(int id)
+    {
+        SwapService.UpdateStatus(id, SwapStatus.Rejected);
+        await LoadLists();
+    }
+
+    private async Task CancelRequest(int id)
+    {
+        // mark as cancelled so it moves to history
+        SwapService.UpdateStatus(id, SwapStatus.Cancelled);
+        await LoadLists();
+    }
+
+    private async Task ShowDetails(int id)
+    {
+        _detailsRequest = SwapService.GetById(id);
+        _detailsRequestedAssignments.Clear();
+        _detailsOfferedAssignments.Clear();
+        if (_detailsRequest != null)
+        {
+            var reqIds = _detailsRequest.RequestedAssignments.ToList();
+            var offIds = _detailsRequest.OfferedAssignments.ToList();
+            if (reqIds.Any()) _detailsRequestedAssignments = RotaService.GetAssignmentsByIds(reqIds).ToList();
+            if (offIds.Any()) _detailsOfferedAssignments = RotaService.GetAssignmentsByIds(offIds).ToList();
+        }
+        if (_detailsModal != null) await _detailsModal.ShowAsync();
+    }
+
+    private async Task CloseDetails()
+    {
+        if (_detailsModal != null) await _detailsModal.HideAsync();
+    }
+}

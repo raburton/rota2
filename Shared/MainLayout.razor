@@ -31,6 +31,10 @@
                 {
                     <li class="nav-item"><NavLink class="nav-link" href="/myshifts">My Shifts</NavLink></li>
                 }
+                @if (_showSwapsLink)
+                {
+                    <li class="nav-item"><NavLink class="nav-link" href="/swaps">Swaps</NavLink></li>
+                }
             </ul>
             <div class="d-flex">
                 <AuthorizeView>
@@ -74,6 +78,7 @@
     private bool _showUsersLink = false;
     private bool _showAllocationsLink = false;
     private bool _showMyAllocationsLink = false;
+    private bool _showSwapsLink = false;
 
     private Microsoft.AspNetCore.Components.Authorization.AuthenticationStateChangedHandler? _authStateHandler;
 
@@ -118,6 +123,7 @@
             int.TryParse(user?.FindFirst(c => c.Type == "UserId")?.Value, out currentUserId);
 
             _showMyAllocationsLink = role == "Registrar" || role == "Consultant";
+            _showSwapsLink = _showMyAllocationsLink;
 
             if (isGlobal)
             {

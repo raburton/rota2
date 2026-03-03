@@ -15,6 +15,20 @@ namespace Rota2.Services
             _cache = cache;
         }
 
+        public IEnumerable<Rota2.Models.ShiftAssignment> GetAssignmentsByIds(IEnumerable<int> ids)
+        {
+            var idList = ids?.ToList() ?? new List<int>();
+            if (!idList.Any()) return Enumerable.Empty<Rota2.Models.ShiftAssignment>();
+            return _db.ShiftAssignments
+                .AsNoTracking()
+                .Include(sa => sa.User)
+                .Include(sa => sa.Shift)
+                .Include(sa => sa.Rota)
+                .Where(sa => idList.Contains(sa.Id))
+                .OrderBy(sa => sa.Date).ThenBy(sa => sa.ShiftId)
+                .ToList();
+        }
+
         public IEnumerable<Rota> GetAll()
         {
             return _db.Rotas

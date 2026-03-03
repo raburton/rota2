@@ -36,6 +36,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
 builder.Services.AddScoped<CustomAuthStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<CustomAuthStateProvider>());
 builder.Services.AddScoped<IRotaService, RotaService>();
+builder.Services.AddScoped<ISwapService, SwapService>();
 builder.Services.AddAuthorizationCore();
 
 var app = builder.Build();

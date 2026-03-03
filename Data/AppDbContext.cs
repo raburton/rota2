@@ -16,6 +16,7 @@ namespace Rota2.Data
         public DbSet<RotaAdmin> RotaAdmins { get; set; }
         public DbSet<ShiftAssignment> ShiftAssignments { get; set; }
         public DbSet<LeaveRequest> LeaveRequests { get; set; }
+        public DbSet<Rota2.Models.SwapRequest> SwapRequests { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
