@@ -34,7 +34,7 @@
                 <tr @key="shift">
                     <td>
                         <InputSelect @bind-Value="shift.Day" class="form-select form-select-sm">
-                            @foreach(var d in Enum.GetValues(typeof(DayOfWeek)).Cast<DayOfWeek>())
+                            @foreach(var d in new[] { DayOfWeek.Monday, DayOfWeek.Tuesday, DayOfWeek.Wednesday, DayOfWeek.Thursday, DayOfWeek.Friday, DayOfWeek.Saturday, DayOfWeek.Sunday })
                             {
                                 <option value="@d">@d</option>
                             }

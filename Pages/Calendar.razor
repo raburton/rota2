@@ -1,0 +1,159 @@
+@page "/calendar"
+@using Rota2.Models
+@inject IRotaService RotaService
+@inject IUserService UserService
+@inject AuthenticationStateProvider AuthStateProvider
+
+<h3>Calendar</h3>
+
+<div class="d-flex align-items-center mb-3">
+    <label class="me-2 mb-0">Rota</label>
+    <select class="form-select form-select-sm me-3" style="width:220px" @onchange="OnRotaChanged">
+        <option value="0">All rotas</option>
+        @foreach(var r in _rotas)
+        {
+            <option value="@r.Id" selected="@(r.Id == _selectedRotaId)">@r.Name</option>
+        }
+    </select>
+
+    <button class="btn btn-outline-secondary me-2" @onclick="PrevMonth"><i class="bi bi-chevron-left"></i></button>
+    <div class="me-3"><strong>@_displayMonth.ToString("MMMM yyyy")</strong></div>
+    <button class="btn btn-outline-secondary me-3" @onclick="NextMonth"><i class="bi bi-chevron-right"></i></button>
+
+    <label class="me-2 mb-0">Jump to</label>
+    <input type="month" class="form-control form-control-sm" style="width: 180px" value="@_displayMonth.ToString("yyyy-MM")" @onchange="OnMonthChanged" />
+</div>
+
+<div class="calendar">
+    <style>
+        /* ensure equal column widths for calendar grid */
+        .calendar .row > .col { flex: 0 0 calc(100% / 7); max-width: calc(100% / 7); }
+        .calendar-cell { min-height: 120px; }
+        .calendar .text-muted.bg-light { background-color: #f8f9fa !important; }
+        .calendar-weekend { background-color: #f6f9ff; }
+        .calendar-weekend-header { background-color: #eef6ff; }
+    </style>
+    <div class="row bg-light border-bottom">
+        @foreach(var d in _weekDays)
+        {
+            <div class="col border-end text-center fw-bold py-2 @(d == "Sat" || d == "Sun" ? "calendar-weekend-header" : "")">@d</div>
+        }
+    </div>
+    @for (int week = 0; week < _weeksInCalendar; week++)
+    {
+        <div class="row">
+            @for (int day = 0; day < 7; day++)
+            {
+                var cellDate = _calendarStart.AddDays(week * 7 + day);
+                var classes = "col border p-2 calendar-cell" + (cellDate.Month == _displayMonth.Month ? "" : " text-muted bg-light") + ((cellDate.DayOfWeek == DayOfWeek.Saturday || cellDate.DayOfWeek == DayOfWeek.Sunday) ? " calendar-weekend" : "");
+                <div class="@classes">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>@cellDate.Day</div>
+                        @if (cellDate.Date == DateTime.Today)
+                        {
+                            <span class="badge bg-primary">Today</span>
+                        }
+                    </div>
+                    <div class="mt-2 small">
+                        @if (_assignmentsByDate.TryGetValue(cellDate.Date, out var dayAssignments))
+                        {
+                            @foreach(var a in dayAssignments.OrderBy(x => x.Shift?.Start))
+                            {
+                                <div class="mb-1 text-truncate">
+                                    <div class="fw-semibold">@a.Rota?.Name</div>
+                                    <div>@((a.User != null) ? a.User.Name : "Unassigned") <small class="text-muted">(@(a.Shift?.Start.ToString("hh\\:mm") ?? "") - @(a.Shift?.End.ToString("hh\\:mm") ?? ""))</small></div>
+                                </div>
+                            }
+                        }
+                        else
+                        {
+                            <div class="text-muted">-</div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private DateTime _displayMonth = DateTime.Today;
+    private DateTime _calendarStart;
+    private int _weeksInCalendar = 6;
+    private readonly string[] _weekDays = new[] { "Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun" };
+    private Dictionary<DateTime, List<Rota2.Models.ShiftAssignment>> _assignmentsByDate = new();
+    private Dictionary<int, Rota2.Models.User> _usersById = new();
+    private List<Rota2.Models.Rota> _rotas = new();
+    private int _selectedRotaId = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // ensure month is set to first day
+        _displayMonth = new DateTime(_displayMonth.Year, _displayMonth.Month, 1);
+        var users = UserService.GetAllUsers().ToList();
+        _usersById = users.ToDictionary(u => u.Id, u => u);
+        _rotas = RotaService.GetAll().ToList();
+        await LoadCalendarAsync();
+    }
+
+    private async Task LoadCalendarAsync()
+    {
+        // build calendar range (variable weeks, week starts Monday)
+        var monthStart = new DateTime(_displayMonth.Year, _displayMonth.Month, 1);
+        // compute offset so week starts Monday
+        int offset = ((int)monthStart.DayOfWeek - 1 + 7) % 7; // Monday=0
+        _calendarStart = monthStart.AddDays(-offset);
+        int daysInMonth = DateTime.DaysInMonth(_displayMonth.Year, _displayMonth.Month);
+        int totalCells = offset + daysInMonth;
+        _weeksInCalendar = (totalCells + 6) / 7;
+        var calendarEnd = _calendarStart.AddDays(_weeksInCalendar * 7 - 1);
+
+        _assignmentsByDate.Clear();
+        var rotasToLoad = _selectedRotaId > 0 ? _rotas.Where(r => r.Id == _selectedRotaId).ToList() : _rotas;
+        foreach (var r in rotasToLoad)
+        {
+            var assigns = RotaService.GetAssignments(r.Id, _calendarStart, calendarEnd);
+            foreach (var a in assigns)
+            {
+                var key = a.Date.Date;
+                if (!_assignmentsByDate.ContainsKey(key)) _assignmentsByDate[key] = new List<Rota2.Models.ShiftAssignment>();
+                // ensure User object present where possible
+                if (a.UserId != null && a.User == null && _usersById.TryGetValue(a.UserId ?? 0, out var u)) a.User = u;
+                // ensure Rota reference is set so calendar can display rota name
+                if (a.Rota == null) a.Rota = r;
+                _assignmentsByDate[key].Add(a);
+            }
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task PrevMonth()
+    {
+        _displayMonth = _displayMonth.AddMonths(-1);
+        await LoadCalendarAsync();
+    }
+
+    private async Task NextMonth()
+    {
+        _displayMonth = _displayMonth.AddMonths(1);
+        await LoadCalendarAsync();
+    }
+
+    private async Task OnMonthChanged(ChangeEventArgs e)
+    {
+        if (e?.Value is string s && DateTime.TryParse(s + "-01", out var dt))
+        {
+            _displayMonth = new DateTime(dt.Year, dt.Month, 1);
+            await LoadCalendarAsync();
+        }
+    }
+
+    private async Task OnRotaChanged(ChangeEventArgs e)
+    {
+        if (e?.Value is string s && int.TryParse(s, out var id))
+        {
+            _selectedRotaId = id;
+            await LoadCalendarAsync();
+        }
+    }
+}
