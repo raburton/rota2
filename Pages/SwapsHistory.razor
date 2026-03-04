@@ -1,0 +1,131 @@
+@page "/swaps/history"
+@using Rota2.Models
+@inject ISwapService SwapService
+@inject IUserService UserService
+@inject IRotaService RotaService
+@inject AuthenticationStateProvider AuthStateProvider
+@inject NavigationManager Nav
+
+<h3>Swap history</h3>
+
+@if (!_isDoctor)
+{
+    <div class="alert alert-danger">You are not authorized to view swap history.</div>
+}
+else
+{
+    <div class="row">
+        <div class="col-12">
+            @if (!_history.Any())
+            {
+                <div class="text-muted">No swap history.</div>
+            }
+            @foreach(var s in _history)
+            {
+                <div class="card mb-2">
+                    <div class="card-body">
+                        <div><strong>@GetUserName(s.FromUserId)</strong> → <strong>@GetUserName(s.ToUserId)</strong></div>
+                        <div class="text-muted">@s.Status.ToString() on @(s.UpdatedAt?.ToLocalTime().ToString("g") ?? s.CreatedAt.ToLocalTime().ToString("g"))</div>
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => ShowDetails(s.Id)">Details</button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    <BootstrapModal @ref="_detailsModal" Title="Swap details" ConfirmText="Close" ShowCancel="false" OnConfirm="CloseDetails">
+        @if (_detailsRequest == null)
+        {
+            <p class="text-muted">No details available.</p>
+        }
+        else
+        {
+            <div><strong>Requester:</strong> @GetUserName(_detailsRequest.FromUserId)</div>
+            <div><strong>Nominated:</strong> @GetUserName(_detailsRequest.ToUserId)</div>
+            <div class="mt-2">
+                <h6>Offered assignments (from @GetUserName(_detailsRequest.FromUserId))</h6>
+                @if (!_detailsOfferedAssignments.Any()) { <div class="text-muted">None</div> }
+                else
+                {
+                    <ul>
+                    @foreach(var a in _detailsOfferedAssignments)
+                    {
+                        <li>@a.Date.ToString("yyyy-MM-dd") - @a.Rota?.Name - @a.Shift?.Day (@a.Shift?.Start.ToString("hh\\:mm") - @a.Shift?.End.ToString("hh\\:mm"))</li>
+                    }
+                    </ul>
+                }
+            </div>
+            <div class="mt-2">
+                <h6>Requested assignments (from @GetUserName(_detailsRequest.ToUserId))</h6>
+                @if (!_detailsRequestedAssignments.Any()) { <div class="text-muted">None</div> }
+                else
+                {
+                    <ul>
+                    @foreach(var a in _detailsRequestedAssignments)
+                    {
+                        <li>@a.Date.ToString("yyyy-MM-dd") - @a.Rota?.Name - @a.Shift?.Day (@a.Shift?.Start.ToString("hh\\:mm") - @a.Shift?.End.ToString("hh\\:mm"))</li>
+                    }
+                    </ul>
+                }
+            </div>
+        }
+    </BootstrapModal>
+}
+
+@code {
+    private bool _isDoctor = false;
+    private int _currentUserId = 0;
+    private List<SwapRequest> _history = new();
+    private Dictionary<int, Rota2.Models.User> _usersById = new();
+
+    private Shared.BootstrapModal? _detailsModal;
+    private SwapRequest? _detailsRequest;
+    private List<Rota2.Models.ShiftAssignment> _detailsRequestedAssignments = new();
+    private List<Rota2.Models.ShiftAssignment> _detailsOfferedAssignments = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        var user = state.User;
+        if (int.TryParse(user?.FindFirst(c => c.Type == "UserId")?.Value, out var uid)) _currentUserId = uid;
+        var role = user?.FindFirst(c => c.Type == "Role")?.Value;
+        _isDoctor = role == "Registrar" || role == "Consultant";
+        if (!_isDoctor) return;
+
+        var users = UserService.GetAllUsers().Where(u => u.Active).ToList();
+        _usersById = users.ToDictionary(u => u.Id, u => u);
+
+        var allIncoming = SwapService.GetIncoming(_currentUserId).ToList();
+        var outgoing = SwapService.GetOutgoing(_currentUserId).ToList();
+        _history = allIncoming.Concat(outgoing).Where(s => s.Status != SwapStatus.Pending).Distinct().OrderByDescending(s => s.CreatedAt).ToList();
+    }
+
+    private async Task ShowDetails(int id)
+    {
+        _detailsRequest = SwapService.GetById(id);
+        _detailsRequestedAssignments.Clear();
+        _detailsOfferedAssignments.Clear();
+        if (_detailsRequest != null)
+        {
+            var reqIds = _detailsRequest.RequestedAssignments.ToList();
+            var offIds = _detailsRequest.OfferedAssignments.ToList();
+            if (reqIds.Any()) _detailsRequestedAssignments = RotaService.GetAssignmentsByIds(reqIds).ToList();
+            if (offIds.Any()) _detailsOfferedAssignments = RotaService.GetAssignmentsByIds(offIds).ToList();
+        }
+        if (_detailsModal != null) await _detailsModal.ShowAsync();
+    }
+
+    private async Task CloseDetails()
+    {
+        if (_detailsModal != null) await _detailsModal.HideAsync();
+    }
+
+    private string GetUserName(int id)
+    {
+        if (_usersById != null && _usersById.TryGetValue(id, out var u) && u != null)
+            return u.Name ?? "Unknown";
+        return "Unknown";
+    }
+}

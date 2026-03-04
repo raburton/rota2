@@ -27,10 +27,10 @@ else
         }
         else
         {
-            <div><strong>Requester:</strong> @_usersById[_detailsRequest.FromUserId]?.Name</div>
-            <div><strong>Nominated:</strong> @_usersById[_detailsRequest.ToUserId]?.Name</div>
+            <div><strong>Requester:</strong> @GetUserName(_detailsRequest.FromUserId)</div>
+            <div><strong>Nominated:</strong> @GetUserName(_detailsRequest.ToUserId)</div>
             <div class="mt-2">
-                <h6>Offered assignments (from @_usersById[_detailsRequest.FromUserId]?.Name)</h6>
+                <h6>Offered assignments (from @GetUserName(_detailsRequest.FromUserId))</h6>
                 @if (!_detailsOfferedAssignments.Any()) { <div class="text-muted">None</div> }
                 else
                 {
@@ -43,7 +43,7 @@ else
                 }
             </div>
             <div class="mt-2">
-                <h6>Requested assignments (from @_usersById[_detailsRequest.ToUserId]?.Name)</h6>
+                <h6>Requested assignments (from @GetUserName(_detailsRequest.ToUserId))</h6>
                 @if (!_detailsRequestedAssignments.Any()) { <div class="text-muted">None</div> }
                 else
                 {
@@ -56,6 +56,60 @@ else
                 }
             </div>
         }
+    </BootstrapModal>
+    <BootstrapModal @ref="_confirmModal" Title="@ConfirmTitle" ShowCancel="true" DisableBackdropClose="true">
+        <ChildContent>
+        @if (_confirmRequest == null)
+        {
+            <p class="text-muted">No details available.</p>
+        }
+        else
+        {
+            <div><strong>Requester:</strong> @GetUserName(_confirmRequest.FromUserId)</div>
+            <div><strong>Nominated:</strong> @GetUserName(_confirmRequest.ToUserId)</div>
+            <div class="mt-2">
+                <h6>Offered assignments (from @GetUserName(_confirmRequest.FromUserId))</h6>
+                @if (!_confirmOfferedAssignments.Any()) { <div class="text-muted">None</div> }
+                else
+                {
+                    <ul>
+                    @foreach(var a in _confirmOfferedAssignments)
+                    {
+                        <li>@a.Date.ToString("yyyy-MM-dd") - @a.Rota?.Name - @a.Shift?.Day (@a.Shift?.Start.ToString("hh\\:mm") - @a.Shift?.End.ToString("hh\\:mm"))</li>
+                    }
+                    </ul>
+                }
+            </div>
+            <div class="mt-2">
+                <h6>Requested assignments (from @GetUserName(_confirmRequest.ToUserId))</h6>
+                @if (!_confirmRequestedAssignments.Any()) { <div class="text-muted">None</div> }
+                else
+                {
+                    <ul>
+                    @foreach(var a in _confirmRequestedAssignments)
+                    {
+                        <li>@a.Date.ToString("yyyy-MM-dd") - @a.Rota?.Name - @a.Shift?.Day (@a.Shift?.Start.ToString("hh\\:mm") - @a.Shift?.End.ToString("hh\\:mm"))</li>
+                    }
+                    </ul>
+                }
+            </div>
+        }
+        </ChildContent>
+        <Footer>
+            @if (_confirmAction == ConfirmType.Cancel)
+            {
+                <button class="btn btn-danger ms-2" type="button" @onclick="PerformConfirmedAction">Cancel Request</button>
+            }
+            else if (_confirmAction == ConfirmType.Reject)
+            {
+                <button class="btn btn-danger ms-2" type="button" @onclick="PerformConfirmedAction">Reject Request</button>
+            }
+            else
+            {
+                <button class="btn btn-success ms-2" type="button" @onclick="PerformConfirmedAction">Accept Request</button>
+            }
+            <button class="btn btn-primary" type="button" @onclick="async () => { if (_confirmModal != null) await _confirmModal.HideAsync(); }">Close</button>
+        </Footer>
     </BootstrapModal>
     <div class="row mb-3">
         <div class="col-md-6">
@@ -88,7 +142,9 @@ else
                                 @foreach(var a in _myAssignments)
                                 {
                                     <tr>
-                                        <td><input type="checkbox" @onchange="(e => ToggleSelect(_mySelected, a.Id, (e.Value as bool?)==true))" /></td>
+                                        <td>
+                                            <input type="checkbox" checked="@(_mySelected.Contains(a.Id))" @onchange="(e => ToggleSelect(_mySelected, a.Id, (e.Value as bool?)==true))" />
+                                        </td>
                                         <td>@a.Date.ToString("yyyy-MM-dd")</td>
                                         <td>@a.Shift?.Day</td>
                                         <td>@a.Shift?.Start.ToString("hh\\:mm") - @a.Shift?.End.ToString("hh\\:mm")</td>
@@ -101,6 +157,7 @@ else
                 </div>
                 <div class="mt-2">
                     <button class="btn btn-secondary me-2" @onclick="PrevStep">Back</button>
+                    <button class="btn btn-outline-secondary me-2" @onclick="CancelWizard">Cancel</button>
                     <button class="btn btn-primary" @onclick="NextStep">Next</button>
                 </div>
             }
@@ -116,7 +173,9 @@ else
                                 @foreach(var a in _nominatedAssignments)
                                 {
                                     <tr>
-                                        <td><input type="checkbox" @onchange="(e => ToggleSelect(_nominatedSelected, a.Id, (e.Value as bool?)==true))" /></td>
+                                        <td>
+                                            <input type="checkbox" checked="@(_nominatedSelected.Contains(a.Id))" @onchange="(e => ToggleSelect(_nominatedSelected, a.Id, (e.Value as bool?)==true))" />
+                                        </td>
                                         <td>@a.Date.ToString("yyyy-MM-dd")</td>
                                         <td>@a.Shift?.Day</td>
                                         <td>@a.Shift?.Start.ToString("hh\\:mm") - @a.Shift?.End.ToString("hh\\:mm")</td>
@@ -129,6 +188,7 @@ else
                 </div>
                 <div class="mt-2">
                     <button class="btn btn-secondary me-2" @onclick="PrevStep">Back</button>
+                    <button class="btn btn-outline-secondary me-2" @onclick="CancelWizard">Cancel</button>
                     <button class="btn btn-success" @onclick="SubmitRequest">Submit request</button>
                 </div>
             }
@@ -144,12 +204,14 @@ else
                 @foreach(var s in _incoming)
                 {
                     <div class="list-group-item">
-                            <div><strong>@_usersById[s.FromUserId]?.Name</strong> requested swap at @s.CreatedAt.ToLocalTime().ToString("g")</div>
-                            <div class="mt-2">
-                                <button class="btn btn-sm btn-outline-secondary me-2" @onclick="() => ShowDetails(s.Id)">Details</button>
-                                <button class="btn btn-sm btn-success me-2" @onclick="() => Accept(s.Id)">Accept</button>
-                                <button class="btn btn-sm btn-outline-danger" @onclick="() => Reject(s.Id)">Reject</button>
-                            </div>
+                        <div>
+                            <strong>@GetUserName(s.FromUserId)</strong> requested swap at @s.CreatedAt.ToLocalTime().ToString("g")
+                        </div>
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-secondary me-2" @onclick="() => ShowDetails(s.Id)">Details</button>
+                            <button class="btn btn-sm btn-success me-2" @onclick="() => ShowConfirm(ConfirmType.Accept, s.Id)">Accept</button>
+                            <button class="btn btn-sm btn-danger" @onclick="() => ShowConfirm(ConfirmType.Reject, s.Id)">Reject</button>
+                        </div>
                     </div>
                 }
             </div>
@@ -162,32 +224,37 @@ else
             <div class="list-group">
                 @foreach(var s in _outgoingPending)
                 {
-                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div class="list-group-item">
                         <div>
-                            <div><strong>To: @_usersById[s.ToUserId]?.Name</strong> requested at @s.CreatedAt.ToLocalTime().ToString("g")</div>
-                            <div class="text-muted">@s.RequestedAssignmentIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Length selected from nominated, @s.OfferedAssignmentIds.Split(',', StringSplitOptions.RemoveEmptyEntries).Length offered</div>
+                            <strong>To: @GetUserName(s.ToUserId)</strong> requested swap at @s.CreatedAt.ToLocalTime().ToString("g")
                         </div>
-                        <div>
-                            <button class="btn btn-sm btn-outline-secondary me-2" @onclick="() => ShowDetails(s.Id)">Details</button>
-                            <button class="btn btn-sm btn-outline-danger" @onclick="() => CancelRequest(s.Id)">Cancel</button>
+                        <div class="mt-2">
+                            <button class="btn btn-sm btn-secondary me-2" @onclick="() => ShowDetails(s.Id)">Details</button>
+                            <button class="btn btn-sm btn-danger" @onclick="() => ShowConfirm(ConfirmType.Cancel, s.Id)">Cancel</button>
                         </div>
                     </div>
                 }
             </div>
 
             <h5 class="mt-3">History</h5>
-            @foreach(var s in _history)
+            @foreach(var s in _history.Take(5))
             {
                 <div class="card mb-2">
-                    <div class="card-body d-flex justify-content-between align-items-start">
+                    <div class="card-body">
                         <div>
-                            <div><strong>@_usersById[s.FromUserId]?.Name</strong> → <strong>@_usersById[s.ToUserId]?.Name</strong></div>
+                            <div><strong>@GetUserName(s.FromUserId)</strong> → <strong>@GetUserName(s.ToUserId)</strong></div>
                             <div class="text-muted">@s.Status.ToString() on @(s.UpdatedAt?.ToLocalTime().ToString("g") ?? s.CreatedAt.ToLocalTime().ToString("g"))</div>
                         </div>
-                        <div>
+                        <div class="mt-2">
                             <button class="btn btn-sm btn-outline-secondary" @onclick="() => ShowDetails(s.Id)">Details</button>
                         </div>
                     </div>
+                </div>
+            }
+            @if (_history.Count > 5)
+            {
+                <div class="mt-2">
+                    <a class="btn btn-sm btn-outline-primary" href="/swaps/history"><i class="bi bi-list me-1"></i>More</a>
                 </div>
             }
         </div>
@@ -214,6 +281,13 @@ else
     private List<Rota2.Models.ShiftAssignment> _detailsOfferedAssignments = new();
     private int _pendingCount = 0;
     private int _currentUserId = 0;
+    private Shared.BootstrapModal? _confirmModal;
+    private SwapRequest? _confirmRequest;
+    private List<Rota2.Models.ShiftAssignment> _confirmRequestedAssignments = new();
+    private List<Rota2.Models.ShiftAssignment> _confirmOfferedAssignments = new();
+    private ConfirmType _confirmAction = ConfirmType.Accept;
+
+    private enum ConfirmType { Accept, Reject, Cancel }
 
     protected override async Task OnInitializedAsync()
     {
@@ -287,7 +361,19 @@ else
         };
         SwapService.Create(req);
         await LoadLists();
-        _step = 1; _nominatedId = 0; _nominatedSelected.Clear(); _mySelected.Clear();
+        _step = 1; _nominatedId = 0; _nominatedSelected.Clear(); _mySelected.Clear(); _loadedNominatedId = 0; _myAssignments.Clear(); _nominatedAssignments.Clear();
+    }
+
+    private void CancelWizard()
+    {
+        // reset wizard to initial state
+        _step = 1;
+        _nominatedSelected.Clear();
+        _mySelected.Clear();
+        _nominatedId = 0;
+        _loadedNominatedId = 0;
+        _myAssignments.Clear();
+        _nominatedAssignments.Clear();
     }
 
     private async Task Accept(int id)
@@ -330,5 +416,52 @@ else
     private async Task CloseDetails()
     {
         if (_detailsModal != null) await _detailsModal.HideAsync();
+    }
+
+    private async Task ShowConfirm(ConfirmType type, int id)
+    {
+        _confirmAction = type;
+        _confirmRequest = SwapService.GetById(id);
+        _confirmRequestedAssignments.Clear();
+        _confirmOfferedAssignments.Clear();
+        if (_confirmRequest != null)
+        {
+            var reqIds = _confirmRequest.RequestedAssignments.ToList();
+            var offIds = _confirmRequest.OfferedAssignments.ToList();
+            if (reqIds.Any()) _confirmRequestedAssignments = RotaService.GetAssignmentsByIds(reqIds).ToList();
+            if (offIds.Any()) _confirmOfferedAssignments = RotaService.GetAssignmentsByIds(offIds).ToList();
+        }
+        if (_confirmModal != null) await _confirmModal.ShowAsync();
+    }
+
+    private string ConfirmTitle => _confirmAction == ConfirmType.Accept ? "Confirm accept" : _confirmAction == ConfirmType.Reject ? "Confirm reject" : "Confirm cancel";
+    private string ConfirmButtonClass => _confirmAction == ConfirmType.Accept ? "btn btn-success" : "btn btn-danger";
+    private string ConfirmButtonText => _confirmAction == ConfirmType.Accept ? "Accept" : _confirmAction == ConfirmType.Reject ? "Reject" : "Cancel";
+
+    private async Task PerformConfirmedAction()
+    {
+        if (_confirmRequest == null) { if (_confirmModal != null) await _confirmModal.HideAsync(); return; }
+        var id = _confirmRequest.Id;
+        if (_confirmAction == ConfirmType.Accept)
+        {
+            SwapService.Accept(id, _currentUserId);
+        }
+        else if (_confirmAction == ConfirmType.Reject)
+        {
+            SwapService.UpdateStatus(id, SwapStatus.Rejected);
+        }
+        else if (_confirmAction == ConfirmType.Cancel)
+        {
+            SwapService.UpdateStatus(id, SwapStatus.Cancelled);
+        }
+        if (_confirmModal != null) await _confirmModal.HideAsync();
+        await LoadLists();
+    }
+
+    private string GetUserName(int id)
+    {
+        if (_usersById != null && _usersById.TryGetValue(id, out var u) && u != null)
+            return u.Name ?? "Unknown";
+        return "Unknown";
     }
 }
