@@ -333,13 +333,20 @@ namespace Rota2.Services
             if (existing == null) return;
             existing.Name = rota.Name;
 
-            // replace shifts
-            _db.Shifts.RemoveRange(existing.Shifts);
-            foreach (var s in rota.Shifts)
+            // replace shifts only if they differ - avoid deleting and recreating when unchanged
+            var existingSignatures = existing.Shifts.Select(s => (Day: s.Day, Start: s.Start, End: s.End)).OrderBy(t => t.Day).ThenBy(t => t.Start).ToList();
+            var newSignatures = rota.Shifts.Select(s => (Day: s.Day, Start: s.Start, End: s.End)).OrderBy(t => t.Day).ThenBy(t => t.Start).ToList();
+            var shiftsDiffer = existingSignatures.Count != newSignatures.Count || existingSignatures.Zip(newSignatures, (e, n) => e == n).Any(eq => !eq);
+            if (shiftsDiffer)
             {
-                s.Id = 0;
-                s.RotaId = existing.Id;
-                _db.Shifts.Add(s);
+                // delete existing shifts and add the new set
+                _db.Shifts.RemoveRange(existing.Shifts);
+                foreach (var s in rota.Shifts)
+                {
+                    s.Id = 0;
+                    s.RotaId = existing.Id;
+                    _db.Shifts.Add(s);
+                }
             }
 
             // replace doctors
