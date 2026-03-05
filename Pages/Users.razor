@@ -1,7 +1,9 @@
 @page "/users"
 @using Rota2.Services
+@using Microsoft.AspNetCore.Components.Forms
 @attribute [Microsoft.AspNetCore.Authorization.Authorize]
 @inject IUserService UserService
+@inject Rota2.Services.IEmailService EmailService
 @inject AuthenticationStateProvider AuthStateProvider
 @inject NavigationManager Nav
 
@@ -46,10 +48,56 @@ else
             <label class="form-label">Search</label>
             <input class="form-control" @bind="_search" placeholder="Search name" />
         </div>
-        <div class="col-md-2 text-end">
-            <button class="btn btn-primary" @onclick="AddUser"><i class="bi bi-plus-lg me-1"></i>Add User</button>
+        <div class="col-auto ms-auto d-flex align-items-center flex-nowrap">
+            <button class="btn btn-primary btn-sm" @onclick="AddUser" style="white-space:nowrap"><i class="bi bi-plus-lg me-1"></i>Add User</button>
+            <button class="btn btn-primary btn-sm ms-2" @onclick="OpenImportModal" style="white-space:nowrap"><i class="bi bi-upload me-1"></i>Import CSV</button>
         </div>
     </div>
+
+    <BootstrapModal @ref="_importModal" Title="Import users from CSV" DisableBackdropClose="true">
+        <ChildContent>
+            <div class="mb-2">
+                <label class="form-label">CSV file (email,name,role,wte)</label>
+                <InputFile @key="_importFileKey" OnChange="OnImportFileSelected" accept=".csv" />
+            </div>
+            @if (_importErrors.Any())
+            {
+                <div class="alert alert-danger">
+                    <strong>Errors:</strong>
+                    <ul>
+                    @foreach(var err in _importErrors)
+                    {
+                        <li>@err</li>
+                    }
+                    </ul>
+                </div>
+            }
+            @if (_importPreview.Any())
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead><tr><th>Email</th><th>Name</th><th>Role</th><th>WTE</th><th>Status</th></tr></thead>
+                        <tbody>
+                        @foreach(var row in _importPreview)
+                        {
+                            <tr>
+                                <td>@row.Email</td>
+                                <td>@row.Name</td>
+                                <td>@row.RoleText</td>
+                                <td>@row.WteText</td>
+                                <td>@(row.IsValid ? "OK" : row.Error)</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </ChildContent>
+        <Footer>
+            <button class="btn btn-secondary" type="button" @onclick="CloseImportModal">Cancel</button>
+            <button class="btn btn-primary ms-2" type="button" @onclick="ConfirmImport" disabled="@(!_importPreview.Any() || _importErrors.Any())">Import</button>
+        </Footer>
+    </BootstrapModal>
 
     <div class="table-responsive">
     <table class="table table-striped table-hover align-middle">
@@ -143,6 +191,166 @@ else
     private void AddUser()
     {
         Nav.NavigateTo("/users/edit");
+    }
+
+    private string _importMessage = string.Empty;
+    private Shared.BootstrapModal? _importModal;
+    private List<ImportRow> _importPreview = new();
+    private List<string> _importErrors = new();
+    private IBrowserFile? _selectedImportFile;
+    private int _importFileKey = 0;
+
+    private void OpenImportModal()
+    {
+        _importPreview.Clear();
+        _importErrors.Clear();
+        _selectedImportFile = null;
+        _importFileKey++; // reset InputFile component
+        _ = _importModal?.ShowAsync();
+    }
+
+    private async Task CloseImportModal()
+    {
+        _importPreview.Clear();
+        _importErrors.Clear();
+        _selectedImportFile = null;
+        _importFileKey++; // reset InputFile component
+        if (_importModal != null) await _importModal.HideAsync();
+    }
+
+    private async Task OnImportFileSelected(InputFileChangeEventArgs e)
+    {
+        _importPreview.Clear();
+        _importErrors.Clear();
+        _selectedImportFile = e.File;
+        if (_selectedImportFile == null) return;
+        try
+        {
+            using var stream = _selectedImportFile.OpenReadStream(10 * 1024 * 1024);
+            using var reader = new System.IO.StreamReader(stream);
+            // read entire file asynchronously to avoid synchronous read on the underlying stream
+            var content = await reader.ReadToEndAsync();
+            var lines = content.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries).ToList();
+            int rowIndex = 0;
+            foreach (var raw in lines)
+            {
+                rowIndex++;
+                var line = raw.Trim();
+                if (string.IsNullOrWhiteSpace(line)) continue;
+                // skip header if detected
+                if (rowIndex == 1 && line.IndexOf("email", StringComparison.OrdinalIgnoreCase) >= 0 && line.IndexOf("name", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    continue;
+                }
+                var fields = ParseCsvLine(line).ToArray();
+                if (fields.Length == 0) continue;
+                var email = fields.Length > 0 ? fields[0].Trim() : string.Empty;
+                var name = fields.Length > 1 ? fields[1].Trim() : string.Empty;
+                var roleText = fields.Length > 2 ? fields[2].Trim() : string.Empty;
+                var wteText = fields.Length > 3 ? fields[3].Trim() : string.Empty;
+                var row = new ImportRow { Email = email, Name = name, RoleText = roleText, WteText = wteText };
+                // validate
+                if (string.IsNullOrWhiteSpace(email)) { row.IsValid = false; row.Error = "Missing email"; _importErrors.Add($"Line {rowIndex}: missing email"); }
+                if (!string.IsNullOrWhiteSpace(roleText) && !Enum.TryParse<Rota2.Models.UserRole>(roleText, true, out var pr)) { row.IsValid = false; row.Error = row.Error == null ? "Invalid role" : row.Error + "; invalid role"; _importErrors.Add($"Line {rowIndex}: invalid role '{roleText}'"); }
+                if (!string.IsNullOrWhiteSpace(wteText) && !decimal.TryParse(wteText, out var pw)) { row.IsValid = false; row.Error = row.Error == null ? "Invalid WTE" : row.Error + "; invalid WTE"; _importErrors.Add($"Line {rowIndex}: invalid wte '{wteText}'"); }
+                _importPreview.Add(row);
+            }
+        }
+        catch (Exception ex)
+        {
+            _importErrors.Add("Failed to read file: " + ex.Message);
+        }
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private IEnumerable<string> ParseCsvLine(string line)
+    {
+        var fields = new List<string>();
+        var sb = new System.Text.StringBuilder();
+        bool inQuotes = false;
+        for (int i = 0; i < line.Length; i++)
+        {
+            var c = line[i];
+            if (c == '"')
+            {
+                if (inQuotes && i + 1 < line.Length && line[i + 1] == '"')
+                {
+                    // escaped quote
+                    sb.Append('"');
+                    i++; // skip next
+                }
+                else
+                {
+                    inQuotes = !inQuotes;
+                }
+            }
+            else if (c == ',' && !inQuotes)
+            {
+                fields.Add(sb.ToString());
+                sb.Clear();
+            }
+            else
+            {
+                sb.Append(c);
+            }
+        }
+        fields.Add(sb.ToString());
+        return fields;
+    }
+
+    private async Task ConfirmImport()
+    {
+        if (!_importPreview.Any()) return;
+        int created = 0, updated = 0;
+        var allUsers = UserService.GetAllUsers().ToList();
+        foreach (var row in _importPreview)
+        {
+            if (!row.IsValid) continue;
+            var role = Rota2.Models.UserRole.None;
+            if (!string.IsNullOrWhiteSpace(row.RoleText) && Enum.TryParse<Rota2.Models.UserRole>(row.RoleText, true, out var parsedRole)) role = parsedRole;
+            decimal wte = 1.0m;
+            if (!string.IsNullOrWhiteSpace(row.WteText) && decimal.TryParse(row.WteText, out var parsedWte)) wte = parsedWte;
+            var existing = allUsers.FirstOrDefault(u => u.Email.Equals(row.Email, StringComparison.OrdinalIgnoreCase));
+            if (existing != null)
+            {
+                existing.Name = string.IsNullOrEmpty(row.Name) ? existing.Name : row.Name;
+                existing.Role = role;
+                existing.Wte = wte;
+                UserService.UpdateUser(existing);
+                updated++;
+            }
+            else
+            {
+                var nu = new Rota2.Models.User
+                {
+                    Email = row.Email,
+                    Name = string.IsNullOrEmpty(row.Name) ? row.Email : row.Name,
+                    Role = role,
+                    Wte = wte,
+                    Active = true,
+                    IsGlobalAdmin = false
+                };
+                UserService.CreateUserNoPassword(nu);
+                // send notification (best-effort)
+                try { await EmailService.SendNewUserNotificationAsync(nu.Email, nu.Name); } catch { }
+                created++;
+            }
+        }
+        _users = UserService.GetAllUsers();
+        _importMessage = $"Imported: {created} created, {updated} updated.";
+        _importPreview.Clear(); _importErrors.Clear();
+        if (_importModal != null) await _importModal.HideAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private class ImportRow
+    {
+        public string Email { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string RoleText { get; set; } = string.Empty;
+        public string WteText { get; set; } = string.Empty;
+        public bool IsValid { get; set; } = true;
+        public string? Error { get; set; }
     }
 
     private async Task ToggleActive(int id)

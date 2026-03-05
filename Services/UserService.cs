@@ -17,6 +17,8 @@ namespace Rota2.Services
         {
             var user = _db.Users.SingleOrDefault(u => u.Email == email && u.Active);
             if (user == null) return null;
+            // reject users without a password set
+            if (string.IsNullOrEmpty(user.PasswordHash)) return null;
             if (!PasswordHasher.Verify(user.PasswordHash, password)) return null;
             return user;
         }
@@ -24,6 +26,17 @@ namespace Rota2.Services
         public User CreateUser(User user, string password)
         {
             user.PasswordHash = PasswordHasher.Hash(password);
+            _db.Users.Add(user);
+            _db.SaveChanges();
+            return user;
+        }
+
+        public User CreateUserNoPassword(User user)
+        {
+            // leave PasswordHash null so the account cannot be used to login until a password is set
+            // PasswordHash is required by the model / database (not nullable). Use empty string to indicate
+            // no password set; Authenticate will reject users with empty PasswordHash.
+            user.PasswordHash = string.Empty;
             _db.Users.Add(user);
             _db.SaveChanges();
             return user;

@@ -6,6 +6,7 @@ namespace Rota2.Services
     {
         User? Authenticate(string email, string password);
         User CreateUser(User user, string password);
+        User CreateUserNoPassword(User user);
         IEnumerable<User> GetAllUsers();
         User? GetById(int id);
         void UpdatePassword(int id, string newPassword);

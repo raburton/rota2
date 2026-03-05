@@ -37,6 +37,8 @@ builder.Services.AddScoped<CustomAuthStateProvider>();
 builder.Services.AddScoped<AuthenticationStateProvider>(sp => sp.GetRequiredService<CustomAuthStateProvider>());
 builder.Services.AddScoped<IRotaService, RotaService>();
 builder.Services.AddScoped<ISwapService, SwapService>();
+// simple email service (placeholder)
+builder.Services.AddSingleton<Rota2.Services.IEmailService, Rota2.Services.EmailService>();
 builder.Services.AddAuthorizationCore();
 
 var app = builder.Build();
