@@ -14,7 +14,12 @@
         </button>
                 <div class="collapse navbar-collapse" id="navbarSupportedContent">
             <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-                <li class="nav-item"><NavLink class="nav-link" href="/dashboard">Dashboard</NavLink></li>
+                <AuthorizeView>
+                    <Authorized>
+                        <li class="nav-item"><NavLink class="nav-link" href="/dashboard">Dashboard</NavLink></li>
+                        <li class="nav-item"><NavLink class="nav-link" href="/calendar">Calendar</NavLink></li>
+                    </Authorized>
+                </AuthorizeView>
                 @if (_showRotasLink)
                 {
                     <li class="nav-item"><NavLink class="nav-link" href="/rotas">Rotas</NavLink></li>
