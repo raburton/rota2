@@ -19,6 +19,13 @@ else if (_users == null)
 }
 else
 {
+    <div class="row mb-2">
+        <div class="col-12 d-flex justify-content-end">
+            <button class="btn btn-primary" @onclick="AddUser"><i class="bi bi-plus-lg me-1"></i>Add User</button>
+            <button class="btn btn-primary ms-2" @onclick="OpenImportModal"><i class="bi bi-upload me-1"></i>Import CSV</button>
+        </div>
+    </div>
+
     <div class="row g-2 mb-3 align-items-end">
         <div class="col-md-2">
             <label class="form-label">Status</label>
@@ -48,10 +55,7 @@ else
             <label class="form-label">Search</label>
             <input class="form-control" @bind="_search" placeholder="Search name" />
         </div>
-        <div class="col-auto ms-auto d-flex align-items-center flex-nowrap">
-            <button class="btn btn-primary btn-sm" @onclick="AddUser" style="white-space:nowrap"><i class="bi bi-plus-lg me-1"></i>Add User</button>
-            <button class="btn btn-primary btn-sm ms-2" @onclick="OpenImportModal" style="white-space:nowrap"><i class="bi bi-upload me-1"></i>Import CSV</button>
-        </div>
+        
     </div>
 
     <BootstrapModal @ref="_importModal" Title="Import users from CSV" DisableBackdropClose="true">
