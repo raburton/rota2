@@ -46,7 +46,7 @@
             {
                 var cellDate = _calendarStart.AddDays(week * 7 + day);
                 var classes = "col border p-2 calendar-cell" + (cellDate.Month == _displayMonth.Month ? "" : " text-muted bg-light") + ((cellDate.DayOfWeek == DayOfWeek.Saturday || cellDate.DayOfWeek == DayOfWeek.Sunday) ? " calendar-weekend" : "");
-                <div class="@classes">
+                <div class="@classes" style="cursor:pointer" @onclick="(() => OpenDayModal(cellDate))">
                     <div class="d-flex justify-content-between align-items-start">
                         <div>@cellDate.Day</div>
                         @if (cellDate.Date == DateTime.Today)
@@ -76,6 +76,34 @@
     }
 </div>
 
+<BootstrapModal @ref="_dayModal" Title="@GetDayModalTitle()" SizeClass="modal-xl">
+    <ChildContent>
+        <div>
+            
+            @if (_selectedAssignments == null || !_selectedAssignments.Any())
+            {
+                <div class="text-muted">No assignments for this day.</div>
+            }
+            else
+            {
+                <div class="list-group">
+                    @foreach(var a in _selectedAssignments.OrderBy(x => x.Shift?.Start))
+                    {
+                        <div class="list-group-item">
+                            <div class="fw-semibold fs-5">@a.Rota?.Name</div>
+                            <div class="mb-1">@((a.User != null) ? a.User.Name : "Unassigned")</div>
+                            <div class="text-muted">Time: @(a.Shift?.Start.ToString("hh\\:mm") ?? "") - @(a.Shift?.End.ToString("hh\\:mm") ?? "")</div>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    </ChildContent>
+    <Footer>
+        <button class="btn btn-secondary" @onclick="() => _dayModal?.HideAsync()">Close</button>
+    </Footer>
+</BootstrapModal>
+
 @code {
     private DateTime _displayMonth = DateTime.Today;
     private DateTime _calendarStart;
@@ -85,6 +113,9 @@
     private Dictionary<int, Rota2.Models.User> _usersById = new();
     private List<Rota2.Models.Rota> _rotas = new();
     private int _selectedRotaId = 0;
+    private Shared.BootstrapModal? _dayModal;
+    private DateTime _selectedDate = DateTime.Today;
+    private List<Rota2.Models.ShiftAssignment>? _selectedAssignments;
 
     protected override async Task OnInitializedAsync()
     {
@@ -156,4 +187,13 @@
             await LoadCalendarAsync();
         }
     }
+
+    private async Task OpenDayModal(DateTime date)
+    {
+        _selectedDate = date.Date;
+        _selectedAssignments = _assignmentsByDate.TryGetValue(_selectedDate, out var list) ? list.OrderBy(x => x.Shift?.Start).ToList() : new List<Rota2.Models.ShiftAssignment>();
+        if (_dayModal != null) await _dayModal.ShowAsync();
+    }
+
+    private string GetDayModalTitle() => _selectedDate.ToString("dddd, yyyy-MM-dd");
 }
