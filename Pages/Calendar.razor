@@ -100,7 +100,7 @@
         </div>
     </ChildContent>
     <Footer>
-        <button class="btn btn-secondary" @onclick="() => _dayModal?.HideAsync()">Close</button>
+        <button class="btn btn-secondary" @onclick="async () => { if (_dayModal != null) await _dayModal.HideAsync(); }">Close</button>
     </Footer>
 </BootstrapModal>
 

@@ -143,7 +143,7 @@ else
                     {
                         <div class="table-responsive">
                             <table class="table table-sm">
-                                <thead><tr><th>Doctor</th><th>WTE</th><th>Allocated</th><th>Target</th><th>Diff</th></tr></thead>
+                                <thead><tr><th>Doctor</th><th>WTE</th><th>Allocated</th><th>Target</th><th>Diff</th><th>Frequency</th></tr></thead>
                                 <tbody>
                                 @foreach(var r in _analysis)
                                 {
@@ -153,6 +153,29 @@ else
                                         <td>@r.Assigned</td>
                                         <td>@r.Target.ToString("0.##")</td>
                                         <td>@((r.Assigned - r.Target).ToString("0.##"))</td>
+                                        <td>
+                                            @if (r.UserId == 0)
+                                            {
+                                                @string.Empty
+                                            }
+                                            else if (r.Assigned <= 0)
+                                            {
+                                                <span class="text-muted">-</span>
+                                            }
+                                            else
+                                            {
+                                                var oneIn = r.OneIn;
+                                                if (double.IsNaN(oneIn) || double.IsInfinity(oneIn))
+                                                {
+                                                    <span class="text-muted">-</span>
+                                                }
+                                                else
+                                                {
+                                                    var display = oneIn.ToString("0.00");
+                                                    <span>@($"1 in {display}")</span>
+                                                }
+                                            }
+                                        </td>
                                     </tr>
                                 }
                                 </tbody>
@@ -344,7 +367,7 @@ else
         var assignmentsList = (_viewAssignments ?? Enumerable.Empty<Rota2.Models.ShiftAssignment>()).ToList();
         var unallocated = assignmentsList.Count(a => a.UserId == null);
         var counts = assignmentsList.Where(a => a.UserId != null).GroupBy(a => a.UserId!.Value).ToDictionary(g => g.Key, g => g.Count());
-        _analysis.Add(new AnalysisRow { UserId = 0, Name = "(Unallocated)", Wte = double.NaN, Assigned = unallocated, Target = 0.0 });
+        _analysis.Add(new AnalysisRow { UserId = 0, Name = "(Unallocated)", Wte = double.NaN, Assigned = unallocated, Target = 0.0, OneIn = double.NaN });
 
         foreach (var doc in doctors)
         {
@@ -352,11 +375,17 @@ else
             var wte = (double)doc.Wte;
             var assigned = counts.ContainsKey(uid) ? counts[uid] : 0;
             var target = totalWte > 0 ? slots * (wte / totalWte) : 0.0;
-            _analysis.Add(new AnalysisRow { UserId = uid, Name = doc.Name, Wte = wte, Assigned = assigned, Target = target });
+            double oneIn = double.NaN;
+            if (assigned > 0)
+            {
+                // average spacing: total slots divided by assigned count -> one in N
+                oneIn = slots > 0 ? (double)slots / assigned : double.NaN;
+            }
+            _analysis.Add(new AnalysisRow { UserId = uid, Name = doc.Name, Wte = wte, Assigned = assigned, Target = target, OneIn = oneIn });
         }
     }
 
-    private class AnalysisRow { public int UserId { get; set; } public string Name { get; set; } = string.Empty; public double Wte { get; set; } public int Assigned { get; set; } public double Target { get; set; } }
+    private class AnalysisRow { public int UserId { get; set; } public string Name { get; set; } = string.Empty; public double Wte { get; set; } public int Assigned { get; set; } public double Target { get; set; } public double OneIn { get; set; } }
 
     private void Refresh() => LoadAssignments();
 
